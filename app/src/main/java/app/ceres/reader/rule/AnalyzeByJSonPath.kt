@@ -6,11 +6,7 @@ import com.jayway.jsonpath.Option
 import com.jayway.jsonpath.ReadContext
 
 class AnalyzeByJSonPath(json: Any) {
-    private val ctx: ReadContext = when (json) {
-        is ReadContext -> json
-        is String -> JsonPath.using(CONF).parse(json)
-        else -> JsonPath.using(CONF).parse(json)
-    }
+    private val ctx: ReadContext = parse(json)
 
     private fun read(path: String): Any? = runCatching { ctx.read<Any?>(path) }.getOrNull()
 
@@ -43,6 +39,12 @@ class AnalyzeByJSonPath(json: Any) {
     fun getObject(rule: String): Any? = read(rule)
 
     companion object {
+        fun parse(json: Any): ReadContext = when (json) {
+            is ReadContext -> json
+            is String -> JsonPath.using(CONF).parse(json)
+            else -> JsonPath.using(CONF).parse(json)
+        }
+
         private val CONF: Configuration = Configuration.defaultConfiguration()
             .addOptions(Option.SUPPRESS_EXCEPTIONS)
         private val INNER = Regex("\\{(\\$\\..+?)\\}")

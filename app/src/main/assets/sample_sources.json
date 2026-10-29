@@ -9,7 +9,7 @@
     "header": "{\"User-Agent\": \"Ceres/0.1 (Android novel reader; personal use)\"}",
     "searchUrl": "https://zh.wikisource.org/w/api.php?action=query&list=search&srsearch=intitle:{{key}}&srnamespace=0&srlimit=30&format=json",
     "ruleSearch": {
-      "bookList": "@js:var r = JSON.parse(String(result)).query.search, out = [];\nfor (var i = 0; i < r.length; i++) if (r[i].title.indexOf('/') < 0) out.push(r[i]);\nout",
+      "bookList": "@js:var j = JSON.parse(String(result));\nif (j.error) throw '维基文库：' + (j.error.info || j.error.code);\nvar r = (j.query && j.query.search) || [], out = [];\nfor (var i = 0; i < r.length; i++) if (r[i].title.indexOf('/') < 0) out.push(r[i]);\nout",
       "name": "$.title",
       "intro": "$.snippet##<[^>]+>",
       "bookUrl": "https://zh.wikisource.org/zh-hans/{{$.title}}?action=render"
@@ -24,7 +24,7 @@
     },
     "ruleContent": {
       "content": "@CSS:.mw-parser-output > p, .mw-parser-output > dl, .mw-parser-output > div.poem@html",
-      "replaceRegex": "##<sup[^>]*>.*?</sup>"
+      "replaceRegex": "##<sup[^>]*>.*?</sup>|<p>(?:\\s|　|<a\\b[^>]*>[^<]*</a>)*</p>"
     }
   }
 ]

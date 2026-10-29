@@ -11,7 +11,10 @@ import app.ceres.reader.util.md5
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 class BookRepository(
     private val db: AppDatabase,
@@ -76,19 +79,30 @@ class BookRepository(
         if (!book.isLocal) bookDir(book).deleteRecursively()
     }
 
+    private val inFlight = ConcurrentHashMap<String, Mutex>()
+
     suspend fun content(book: Book, chapter: BookChapter, next: BookChapter?, useCache: Boolean = true): List<String> {
         val f = chapterFile(book, chapter)
-        if (useCache && f.exists()) {
-            return runInterruptible(Dispatchers.IO) { f.readText().split('\n').filter { it.isNotEmpty() } }
-        }
+        if (useCache && f.exists()) return readCache(f)
         if (book.isLocal) throw SourceException("本地章节内容缺失")
-        val src = source(book)
-        val paragraphs = runInterruptible(Dispatchers.IO) {
-            WebBook.getContent(src, book, chapter, next?.url)
+        val lock = inFlight.getOrPut(f.path) { Mutex() }
+        try {
+            return lock.withLock {
+                if (useCache && f.exists()) return@withLock readCache(f)
+                val src = source(book)
+                val paragraphs = runInterruptible(Dispatchers.IO) {
+                    WebBook.getContent(src, book, chapter, next?.url)
+                }
+                if (paragraphs.isNotEmpty()) runInterruptible(Dispatchers.IO) { writeCache(book, chapter, paragraphs) }
+                paragraphs
+            }
+        } finally {
+            if (!lock.isLocked) inFlight.remove(f.path, lock)
         }
-        if (paragraphs.isNotEmpty()) runInterruptible(Dispatchers.IO) { writeCache(book, chapter, paragraphs) }
-        return paragraphs
     }
+
+    private suspend fun readCache(f: File) =
+        runInterruptible(Dispatchers.IO) { f.readText().split('\n').filter { it.isNotEmpty() } }
 
     // ---------------- paragraph comments ----------------
 

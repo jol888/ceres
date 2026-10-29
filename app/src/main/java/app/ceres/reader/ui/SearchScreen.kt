@@ -32,6 +32,8 @@ import app.ceres.reader.data.model.SearchBook
 import app.ceres.reader.source.WebBook
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -49,8 +51,16 @@ data class SearchState(
     val total: Int = 0,
     val failed: Int = 0,
     val groups: List<SearchGroup> = emptyList(),
+    val errors: List<String> = emptyList(),
     val message: String? = null,
 )
+
+private fun describe(e: Throwable): String = when (e) {
+    is TimeoutCancellationException, is java.net.SocketTimeoutException -> "超时"
+    is java.net.UnknownHostException -> "无法连接（网络不可用或域名错误）"
+    is javax.net.ssl.SSLException -> "安全连接失败"
+    else -> e.message?.lineSequence()?.firstOrNull()?.take(80) ?: e.javaClass.simpleName
+}
 
 class SearchViewModel : ViewModel() {
     val state = MutableStateFlow(SearchState())
@@ -74,11 +84,14 @@ class SearchViewModel : ViewModel() {
                         val result = runCatching {
                             withTimeout(25_000) { runInterruptible(Dispatchers.IO) { WebBook.search(src, k) } }
                         }
+                        ensureActive()
                         state.update { s ->
                             val books = result.getOrNull().orEmpty()
                             s.copy(
                                 done = s.done + 1,
                                 failed = s.failed + if (result.isFailure) 1 else 0,
+                                errors = result.exceptionOrNull()
+                                    ?.let { s.errors + "${src.bookSourceName}：${describe(it)}" } ?: s.errors,
                                 groups = merge(s.groups, books, k),
                             )
                         }
@@ -87,7 +100,13 @@ class SearchViewModel : ViewModel() {
             }
             jobs.forEach { it.join() }
             state.update {
-                it.copy(running = false, message = if (it.groups.isEmpty()) "没有找到结果" else null)
+                val msg = when {
+                    it.groups.isNotEmpty() -> null
+                    it.errors.isEmpty() -> "没有找到「$k」"
+                    else -> "没有找到「$k」\n\n${it.errors.size} 个书源出错：\n" +
+                        it.errors.take(5).joinToString("\n")
+                }
+                it.copy(running = false, message = msg)
             }
         }
     }

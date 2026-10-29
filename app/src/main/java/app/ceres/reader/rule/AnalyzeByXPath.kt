@@ -26,7 +26,8 @@ class AnalyzeByXPath(content: Any) {
     fun getString(rule: String): String = getStringList(rule).joinToString("\n")
 
     companion object {
-        private fun parse(content: Any): Any = when (content) {
+        fun parse(content: Any): Any = when (content) {
+            is JXDocument -> content
             is JXNode -> if (content.isElement) content else JXDocument.create(content.toString())
             is Document -> JXDocument.create(content)
             is Element -> JXDocument.create(Elements(content))

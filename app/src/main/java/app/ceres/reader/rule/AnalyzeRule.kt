@@ -9,6 +9,7 @@ import app.ceres.reader.util.isJsonLike
 import app.ceres.reader.util.parseStringMap
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
+import com.jayway.jsonpath.ReadContext
 import org.jsoup.nodes.Element
 import org.jsoup.parser.Parser
 import org.seimicrawler.xpath.JXNode
@@ -29,9 +30,17 @@ class AnalyzeRule(
     private val locals = HashMap<String, String>()
     private val ruleCache = HashMap<String, List<SourceRule>>()
 
+    // Parsed forms of `content`, so every rule on a page shares one parse.
+    private var htmlRoot: Element? = null
+    private var jsonCtx: ReadContext? = null
+    private var xpathDoc: Any? = null
+
     enum class Mode { XPath, Json, Default, Js, Regex }
 
     fun setContent(content: Any?, baseUrl: String? = null): AnalyzeRule {
+        if (content !== this.content) {
+            htmlRoot = null; jsonCtx = null; xpathDoc = null
+        }
         this.content = content
         isJSON = when (content) {
             is Map<*, *> -> true
@@ -67,9 +76,9 @@ class AnalyzeRule(
                 val cur = result ?: break
                 result = when (sr.mode) {
                     Mode.Js -> evalJS(sr.rule, cur)
-                    Mode.Json -> AnalyzeByJSonPath(jsonContent(cur)).getStringList(sr.rule)
-                    Mode.XPath -> AnalyzeByXPath(cur).getStringList(sr.rule)
-                    Mode.Default -> if (sr.rule.isEmpty()) JsEngine.toStr(cur) else AnalyzeByJSoup(cur).getStringList(sr.rule)
+                    Mode.Json -> jsonPath(cur).getStringList(sr.rule)
+                    Mode.XPath -> xpath(cur).getStringList(sr.rule)
+                    Mode.Default -> if (sr.rule.isEmpty()) JsEngine.toStr(cur) else jsoup(cur).getStringList(sr.rule)
                     Mode.Regex -> sr.rule
                 }
                 if (sr.replaceRegex.isNotEmpty()) {
@@ -111,12 +120,12 @@ class AnalyzeRule(
                 if (sr.rule.isNotEmpty() || sr.replaceRegex.isEmpty()) {
                     result = when (sr.mode) {
                         Mode.Js -> evalJS(sr.rule, cur)
-                        Mode.Json -> AnalyzeByJSonPath(jsonContent(cur)).getString(sr.rule)
-                        Mode.XPath -> AnalyzeByXPath(cur).getString(sr.rule)
+                        Mode.Json -> jsonPath(cur).getString(sr.rule)
+                        Mode.XPath -> xpath(cur).getString(sr.rule)
                         Mode.Default -> when {
                             sr.rule.isEmpty() -> JsEngine.toStr(cur)
-                            isUrl -> AnalyzeByJSoup(cur).getString0(sr.rule)
-                            else -> AnalyzeByJSoup(cur).getString(sr.rule)
+                            isUrl -> jsoup(cur).getString0(sr.rule)
+                            else -> jsoup(cur).getString(sr.rule)
                         }
                         Mode.Regex -> sr.rule
                     }
@@ -148,9 +157,9 @@ class AnalyzeRule(
                 result = when (sr.mode) {
                     Mode.Regex -> AnalyzeByRegex.getElements(JsEngine.toStr(cur), sr.rule.split("&&"))
                     Mode.Js -> evalJS(sr.rule, cur)
-                    Mode.Json -> AnalyzeByJSonPath(jsonContent(cur)).getList(sr.rule)
-                    Mode.XPath -> AnalyzeByXPath(cur).getElements(sr.rule)
-                    Mode.Default -> AnalyzeByJSoup(cur).getElements(sr.rule)
+                    Mode.Json -> jsonPath(cur).getList(sr.rule)
+                    Mode.XPath -> xpath(cur).getElements(sr.rule)
+                    Mode.Default -> jsoup(cur).getElements(sr.rule)
                 }
                 if (sr.replaceRegex.isNotEmpty()) result = replaceRegex(JsEngine.toStr(result), sr)
             }
@@ -199,7 +208,8 @@ class AnalyzeRule(
         bindings["baseUrl"] = baseUrl
         bindings["chapter"] = chapter
         bindings["title"] = chapter?.title
-        bindings["src"] = content?.let { stringOf(it) }
+        // Serialising a large element is costly; most scripts never read `src`.
+        if (js.contains("src")) bindings["src"] = content?.let { stringOf(it) }
         bindings["nextChapterUrl"] = nextChapterUrl
         bindings.putAll(locals)
         return JsEngine.eval(js, bindings, source?.jsLib)
@@ -220,6 +230,20 @@ class AnalyzeRule(
         else -> cur.toString()
     }
 
+    private fun isPage(cur: Any) = cur is String && cur === content
+
+    private fun jsoup(cur: Any): AnalyzeByJSoup =
+        if (isPage(cur)) AnalyzeByJSoup(htmlRoot ?: AnalyzeByJSoup.toElement(cur).also { htmlRoot = it })
+        else AnalyzeByJSoup(cur)
+
+    private fun jsonPath(cur: Any): AnalyzeByJSonPath =
+        if (isPage(cur)) AnalyzeByJSonPath(jsonCtx ?: AnalyzeByJSonPath.parse(cur).also { jsonCtx = it })
+        else AnalyzeByJSonPath(jsonContent(cur))
+
+    private fun xpath(cur: Any): AnalyzeByXPath =
+        if (isPage(cur)) AnalyzeByXPath(xpathDoc ?: AnalyzeByXPath.parse(cur).also { xpathDoc = it })
+        else AnalyzeByXPath(cur)
+
     private fun stringOf(any: Any): String = when (any) {
         is Element -> any.outerHtml()
         is JXNode -> any.toString()
@@ -233,7 +257,7 @@ class AnalyzeRule(
 
     private fun replaceRegex(result: String, sr: SourceRule): String {
         if (sr.replaceRegex.isEmpty()) return result
-        val regex = runCatching { Regex(sr.replaceRegex) }.getOrNull()
+        val regex = compileRegex(sr.replaceRegex)
         val replacement = sr.replacement
         return if (sr.replaceFirst) {
             if (regex == null) return result.replaceFirst(sr.replaceRegex, replacement)
@@ -413,5 +437,12 @@ class AnalyzeRule(
         private val PUT_PATTERN = Regex("@put:(\\{[^}]+?\\})", RegexOption.IGNORE_CASE)
         private val EVAL_PATTERN = Regex("@get:\\{[^}]+?\\}|\\{\\{[\\w\\W]*?\\}\\}", RegexOption.IGNORE_CASE)
         private val REGEX_GROUP = Regex("\\$\\d{1,2}")
+
+        private val regexCache = java.util.concurrent.ConcurrentHashMap<String, Result<Regex>>()
+
+        private fun compileRegex(pattern: String): Regex? {
+            if (regexCache.size > 512) regexCache.clear()
+            return regexCache.getOrPut(pattern) { runCatching { Regex(pattern) } }.getOrNull()
+        }
     }
 }

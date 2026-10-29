@@ -1,5 +1,6 @@
 package app.ceres.reader.source
 
+import app.ceres.reader.data.model.Book
 import app.ceres.reader.data.model.BookSource
 import app.ceres.reader.util.parseBookSources
 import mockwebserver3.Dispatcher
@@ -28,7 +29,7 @@ class WebBookTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val url = request.url
                 return when (url.encodedPath) {
-                    "/search" -> {
+                    "/search" -> if (url.queryParameter("q") == "无") html("") else {
                         assertEquals("红楼", url.queryParameter("q"))
                         html(
                             """<div class="book"><a href="/book/1">红楼梦</a><span class="author">曹雪芹</span><p class="intro">简介一</p></div>
@@ -47,6 +48,7 @@ class WebBookTest {
                                <a class="next" href="/book/1/toc?p=2">下一页</a>"""
                         )
                     }
+                    "/%E4%B9%A6/2" -> html("""<h1>单页书</h1><ul class="chapters"><li><a href="/c/1">第一章</a></li></ul>""")
                     "/c/1" -> html(
                         """<div id="content"><p>第一章 开始</p><p>段一</p><p>段二</p><p>广告：请访问</p></div>
                            <a href="/c/1_2">下一页</a>"""
@@ -150,5 +152,21 @@ class WebBookTest {
         val page2 = ReviewLoader.detail(src, book, chapters[0], 1, "1", 2, page1.nextUrl)
         assertEquals("好2", page2.items.single().content)
         assertEquals(null, page2.nextUrl)
+    }
+
+    @Test
+    fun tocOnInfoPageIsNotRefetched() {
+        val src = source()
+        val book = Book(bookUrl = "$base/书/2", origin = src.bookSourceUrl, originName = src.bookSourceName)
+        val before = server.requestCount
+        val body = WebBook.getBookInfo(src, book)
+        val chapters = WebBook.getChapterList(src, book, body)
+        assertEquals(listOf("第一章"), chapters.map { it.title })
+        assertEquals(1, server.requestCount - before)
+    }
+
+    @Test
+    fun emptySearchPageIsNoResults() {
+        assertEquals(emptyList<Any>(), WebBook.search(source(), "无"))
     }
 }

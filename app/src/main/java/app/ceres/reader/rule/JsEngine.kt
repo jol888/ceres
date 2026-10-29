@@ -1,12 +1,12 @@
 package app.ceres.reader.rule
 
-import app.ceres.reader.util.md5
 import com.google.gson.GsonBuilder
 import org.mozilla.javascript.ConsString
 import org.mozilla.javascript.Context
 import org.mozilla.javascript.ContextFactory
 import org.mozilla.javascript.NativeArray
 import org.mozilla.javascript.NativeObject
+import org.mozilla.javascript.Script
 import org.mozilla.javascript.Scriptable
 import org.mozilla.javascript.ScriptableObject
 import org.mozilla.javascript.Undefined
@@ -42,7 +42,21 @@ object JsEngine {
 
     private val libScopes = ConcurrentHashMap<String, Scriptable>()
 
-    private fun libScope(cx: Context, jsLib: String): Scriptable = libScopes.getOrPut(md5(jsLib)) {
+    private val scripts = object : LinkedHashMap<String, Script>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Script>?) = size > 256
+    }
+
+    private fun compile(cx: Context, js: String): Script =
+        synchronized(scripts) { scripts[js] } ?: cx.compileString(js, "rule", 1, null).also {
+            synchronized(scripts) { scripts[js] = it }
+        }
+
+    /** Pays Rhino's one-off initialisation cost off the critical path. */
+    fun warmUp() {
+        runCatching { eval("JSON.stringify({a: [1]})", emptyMap()) }
+    }
+
+    private fun libScope(cx: Context, jsLib: String): Scriptable = libScopes.getOrPut(jsLib) {
         val scope = cx.newObject(sharedScope)
         scope.prototype = sharedScope
         scope.parentScope = null
@@ -61,7 +75,7 @@ object JsEngine {
             bindings.forEach { (k, v) ->
                 ScriptableObject.putProperty(scope, k, Context.javaToJS(v, scope))
             }
-            return unwrap(cx.evaluateString(scope, js, "rule", 1, null))
+            return unwrap(compile(cx, js).exec(cx, scope))
         } finally {
             Context.exit()
         }

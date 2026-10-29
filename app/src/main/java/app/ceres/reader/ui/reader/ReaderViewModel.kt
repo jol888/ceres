@@ -11,6 +11,8 @@ import app.ceres.reader.source.ReviewSummary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
@@ -131,11 +133,10 @@ class ReaderViewModel(private val bookUrl: String, private val startIndex: Int?)
         }
         loadJob = viewModelScope.launch {
             try {
-                val paragraphs = books.content(b, chapter, chapters.getOrNull(index + 1))
-                val summary = if (settings.showReviews) {
-                    runCatching { withTimeoutOrNull(6_000) { books.reviewSummary(b, chapter) } }
-                        .getOrNull() ?: ReviewSummary.EMPTY
-                } else ReviewSummary.EMPTY
+                val (paragraphs, summary) = coroutineScope {
+                    val summary = async { reviewSummary(b, chapter) }
+                    books.content(b, chapter, chapters.getOrNull(index + 1)) to summary.await()
+                }
                 current = Loaded(index, chapter.title, paragraphs, summary)
                 layout(target)
                 AppGraph.cache.preload(b, index + 1, settings.preloadCount)
@@ -145,6 +146,17 @@ class ReaderViewModel(private val bookUrl: String, private val startIndex: Int?)
                 ui.update { it.copy(loading = false, error = e.message ?: e.toString()) }
             }
         }
+    }
+
+    private val summaries = HashMap<String, ReviewSummary>()
+
+    private suspend fun reviewSummary(b: Book, chapter: BookChapter): ReviewSummary {
+        if (!settings.showReviews) return ReviewSummary.EMPTY
+        summaries[chapter.url]?.let { return it }
+        val s = runCatching { withTimeoutOrNull(6_000) { books.reviewSummary(b, chapter) } }.getOrNull()
+            ?: return ReviewSummary.EMPTY
+        summaries[chapter.url] = s
+        return s
     }
 
     private suspend fun layout(target: Target) {
@@ -219,6 +231,7 @@ class ReaderViewModel(private val bookUrl: String, private val startIndex: Int?)
         val idx = ui.value.chapterIndex
         val chapter = chapters.getOrNull(idx) ?: return
         val pos = currentPos()
+        summaries.remove(chapter.url)
         viewModelScope.launch {
             if (!b.isLocal) runCatching { books.content(b, chapter, chapters.getOrNull(idx + 1), useCache = false) }
             open(idx, pos)

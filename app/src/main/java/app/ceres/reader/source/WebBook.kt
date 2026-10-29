@@ -12,6 +12,7 @@ import app.ceres.reader.rule.RuleLog
 import app.ceres.reader.util.formatAuthor
 import app.ceres.reader.util.formatBookName
 import app.ceres.reader.util.htmlToParagraphs
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 class SourceException(msg: String) : Exception(msg)
 
@@ -23,7 +24,9 @@ object WebBook {
             ?: throw SourceException("书源未配置搜索地址")
         val au = AnalyzeUrl(searchUrl, key = key, page = page, baseUrl = source.bookSourceUrl, source = source)
         val res = au.getStrResponse()
-        return parseBookList(source, res.body().orEmpty(), res.url(), source.ruleSearch, isSearch = true)
+        val list = parseBookList(source, res.body().orEmpty(), res.url(), source.ruleSearch, isSearch = true)
+        if (list.isEmpty() && res.code() >= 400) throw SourceException("服务器返回 HTTP ${res.code()}")
+        return list
     }
 
     fun parseBookList(
@@ -33,7 +36,10 @@ object WebBook {
         rule: BookListRule?,
         isSearch: Boolean,
     ): List<SearchBook> {
-        if (body.isBlank()) throw SourceException("搜索页面为空")
+        if (body.isBlank()) {
+            RuleLog.log("页面为空")
+            return emptyList()
+        }
         val analyzeRule = AnalyzeRule(null, source).setContent(body, baseUrl)
         val pattern = source.bookUrlPattern?.takeIf { it.isNotBlank() }
         if (pattern != null && runCatching { Regex(pattern).matches(baseUrl) }.getOrDefault(false)) {
@@ -90,6 +96,8 @@ object WebBook {
         val au = AnalyzeUrl(book.bookUrl, baseUrl = source.bookSourceUrl, source = source, ruleData = book)
         val res = au.getStrResponse()
         parseBookInfo(source, book, res.body().orEmpty(), res.url())
+        // Keep the original form (it may carry `,{options}`) so the TOC step can reuse this body.
+        if (book.tocUrl == res.url()) book.tocUrl = book.bookUrl
         return res.body().orEmpty()
     }
 
@@ -126,7 +134,7 @@ object WebBook {
         rule.preUpdateJs?.takeIf { it.isNotBlank() }?.let {
             AnalyzeRule(book, source).evalJS(it)
         }
-        val (firstUrl, firstBody) = if (cachedBody != null && tocUrl == book.bookUrl) {
+        val (firstUrl, firstBody) = if (cachedBody != null && sameUrl(tocUrl, book.bookUrl)) {
             tocUrl to cachedBody
         } else {
             val res = AnalyzeUrl(tocUrl, baseUrl = book.bookUrl, source = source, ruleData = book).getStrResponse()
@@ -210,6 +218,14 @@ object WebBook {
         }
         ar.chapter = null
         return list to nextUrls
+    }
+
+    /** `a` may be the percent-encoded / redirected form of `b`. */
+    private fun sameUrl(a: String, b: String): Boolean {
+        if (a == b) return true
+        val ua = a.toHttpUrlOrNull() ?: return false
+        val ub = b.toHttpUrlOrNull() ?: return false
+        return ua == ub
     }
 
     private fun truthy(s: String): Boolean {
