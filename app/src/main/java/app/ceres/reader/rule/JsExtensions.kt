@@ -2,6 +2,9 @@ package app.ceres.reader.rule
 
 import app.ceres.reader.data.model.BookSource
 import app.ceres.reader.util.md5
+import java.io.File
+import java.net.URL
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.Charset
 import java.security.MessageDigest
@@ -11,6 +14,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
+import java.util.zip.ZipInputStream
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -59,26 +63,157 @@ open class JsExtensions(open val source: BookSource?) {
             forceMethod = "POST", forceBody = body,
         ).getStrResponse()
 
-    fun webView(html: String?, url: String?, js: String?): String? {
-        RuleLog.log("不支持 webView，退化为普通请求")
-        return if (!url.isNullOrBlank()) ajax(url) else html
+    fun webView(html: String?, url: String?, js: String?): String? =
+        webViewGetSource(html, url, js, null)
+
+    fun webViewGetSource(html: String?, url: String?, js: String?, sourceRegex: String?): String? {
+        val host = Host.current
+        if (host == null) {
+            RuleLog.log("无 WebView 环境，退化为普通请求")
+            return if (!url.isNullOrBlank()) ajax(url) else html
+        }
+        val headers = url?.let { runCatching { AnalyzeUrl(it, source = source).headerMap }.getOrNull() }
+        return host.webView(html, url, js, headers ?: emptyMap(), sourceRegex)
     }
 
-    fun webViewGetSource(html: String?, url: String?, js: String?, sourceRegex: String?): String? =
-        webView(html, url, js)
-
     fun startBrowser(url: String, title: String?) {
-        RuleLog.log("不支持 startBrowser: $url")
+        Host.current?.openUrl(url) ?: RuleLog.log("无浏览器环境: $url")
     }
 
     fun startBrowserAwait(url: String, title: String?): StrResponse {
-        RuleLog.log("不支持 startBrowserAwait，退化为普通请求")
-        return connect(url)
+        val host = Host.current ?: return connect(url).also { RuleLog.log("无浏览器环境，退化为普通请求") }
+        return host.browse(url, title, AnalyzeUrl(url, source = source).headerMap)
     }
 
+    fun startBrowserAwait(url: String, title: String?, refetchAfterSuccess: Boolean?): StrResponse =
+        startBrowserAwait(url, title)
+
     fun getVerificationCode(imageUrl: String): String {
-        RuleLog.log("不支持验证码: $imageUrl")
-        return ""
+        val host = Host.current ?: return "".also { RuleLog.log("无界面，无法输入验证码: $imageUrl") }
+        return host.verificationCode(imageUrl)
+    }
+
+    fun openUrl(url: String) = startBrowser(url, null)
+    fun openUrl(url: String, mimeType: String?) = startBrowser(url, null)
+
+    // ---- source / book ----
+
+    fun getTag(): String? = source?.bookSourceName
+
+    /** Legado refreshes the open book when a rule calls these; Ceres re-reads on every open. */
+    fun refreshBookUrl() = Unit
+    fun refreshTocUrl() = Unit
+    fun refreshBookInfo() = Unit
+    fun refreshContent() = Unit
+
+    fun toNumChapter(s: String?): String? {
+        s ?: return null
+        val m = TITLE_NUM.find(s) ?: return s
+        val n = chineseToInt(m.groupValues[2])
+        return if (n < 0) s else s.replaceRange(m.range, "${m.groupValues[1]}$n${m.groupValues[3]}")
+    }
+
+    fun toURL(url: String): JsURL = JsURL(url, null)
+    fun toURL(url: String, baseUrl: String?): JsURL = JsURL(url, baseUrl)
+
+    // ---- files (confined to Host.filesDir) ----
+
+    fun getFile(path: String): File {
+        val root = Host.filesDir.canonicalFile
+        val file = File(root, path.trimStart('/', File.separatorChar)).canonicalFile
+        if (file != root && !file.path.startsWith(root.path + File.separator)) throw SecurityException("非法路径: $path")
+        return file
+    }
+
+    fun readFile(path: String): ByteArray? = getFile(path).takeIf { it.isFile }?.readBytes()
+
+    fun readTxtFile(path: String): String {
+        val f = getFile(path)
+        return if (f.isFile) Http.decode(f.readBytes(), null, null) else ""
+    }
+
+    fun readTxtFile(path: String, charsetName: String): String {
+        val f = getFile(path)
+        return if (f.isFile) String(f.readBytes(), Charset.forName(charsetName)) else ""
+    }
+
+    fun deleteFile(path: String): Boolean = getFile(path).deleteRecursively()
+
+    /** Downloads [url] into the sandbox and returns its relative path. */
+    fun downloadFile(url: String): String {
+        val au = AnalyzeUrl(url, source = source)
+        val ext = au.type ?: au.url.substringBefore('?').substringAfterLast('/').substringAfterLast('.', "")
+            .takeIf { it.length in 1..5 } ?: "bin"
+        val rel = "${md5Encode16(url)}.$ext"
+        val file = getFile(rel)
+        file.parentFile?.mkdirs()
+        file.writeBytes(au.getByteArray())
+        return rel
+    }
+
+    fun downloadFile(content: String, url: String): String {
+        val ext = AnalyzeUrl(url, source = source).type ?: return ""
+        val rel = "${md5Encode16(url)}.$ext"
+        getFile(rel).apply { parentFile?.mkdirs() }.writeBytes(content.hexToBytes())
+        return rel
+    }
+
+    /** Extracts the zip at [zipPath] into a sibling folder and returns that folder's relative path. */
+    fun unzipFile(zipPath: String): String {
+        if (zipPath.isBlank()) return ""
+        val zip = getFile(zipPath)
+        val rel = zipPath.substringBeforeLast('.')
+        val dir = getFile(rel).apply { deleteRecursively(); mkdirs() }
+        ZipInputStream(zip.inputStream().buffered()).use { zis ->
+            while (true) {
+                val e = zis.nextEntry ?: break
+                val out = File(dir, e.name).canonicalFile
+                if (!out.path.startsWith(dir.path + File.separator)) continue
+                if (e.isDirectory) out.mkdirs() else out.apply { parentFile?.mkdirs() }.outputStream().use { zis.copyTo(it) }
+            }
+        }
+        zip.delete()
+        return rel
+    }
+
+    fun getTxtInFolder(path: String): String {
+        val dir = getFile(path)
+        val text = dir.listFiles()?.filter { it.isFile }?.sortedBy { it.name }
+            ?.joinToString("\n") { Http.decode(it.readBytes(), null, null) }.orEmpty()
+        dir.deleteRecursively()
+        return text
+    }
+
+    /** Downloads a text file once and serves it from the sandbox for [saveTime] seconds (0 = forever). */
+    fun cacheFile(url: String): String = cacheFile(url, 0)
+
+    fun cacheFile(url: String, saveTime: Int): String {
+        val key = "cacheFile_${md5Encode16(url)}"
+        CacheStore.get(key)?.let { path -> if (getFile(path).isFile) return readTxtFile(path) }
+        val path = downloadFile(url)
+        CacheStore.put(key, path, saveTime)
+        return readTxtFile(path)
+    }
+
+    fun getZipStringContent(url: String, path: String): String =
+        getZipByteArrayContent(url, path)?.let { Http.decode(it, null, null) }.orEmpty()
+
+    fun getZipStringContent(url: String, path: String, charsetName: String): String =
+        getZipByteArrayContent(url, path)?.let { String(it, Charset.forName(charsetName)) }.orEmpty()
+
+    /** [url] is a link or a hex string of the zip; returns the bytes of entry [path]. */
+    fun getZipByteArrayContent(url: String, path: String): ByteArray? {
+        val bytes = if (url.startsWith("http", true) || url.startsWith("data:", true)) {
+            AnalyzeUrl(url, source = source).getByteArray()
+        } else {
+            url.hexToBytes()
+        }
+        ZipInputStream(bytes.inputStream()).use { zis ->
+            while (true) {
+                val e = zis.nextEntry ?: return null
+                if (e.name == path) return zis.readBytes()
+            }
+        }
     }
 
     fun importScript(path: String): String {
@@ -174,6 +309,52 @@ open class JsExtensions(open val source: BookSource?) {
     fun aesEncodeToBase64String(str: String, key: String, transformation: String, iv: String): String =
         SymmetricCrypto(transformation, key, iv).encryptBase64(str)
 
+    fun aesDecodeToByteArray(str: String, key: String, transformation: String, iv: String): ByteArray =
+        SymmetricCrypto(transformation, key, iv).decrypt(str)
+
+    fun aesBase64DecodeToByteArray(str: String, key: String, transformation: String, iv: String): ByteArray =
+        SymmetricCrypto(transformation, key, iv).decrypt(Base64.getMimeDecoder().decode(str))
+
+    fun aesEncodeToByteArray(str: String, key: String, transformation: String, iv: String): ByteArray =
+        SymmetricCrypto(transformation, key, iv).encrypt(str)
+
+    fun aesEncodeToBase64ByteArray(str: String, key: String, transformation: String, iv: String): ByteArray =
+        SymmetricCrypto(transformation, key, iv).encryptBase64(str).toByteArray()
+
+    /** Key and IV are Base64. */
+    fun aesDecodeArgsBase64Str(data: String, key: String, mode: String, padding: String, iv: String): String =
+        SymmetricCrypto("AES/$mode/$padding", b64(key), b64(iv)).decryptStr(data)
+
+    fun aesEncodeArgsBase64Str(data: String, key: String, mode: String, padding: String, iv: String): String =
+        SymmetricCrypto("AES/$mode/$padding", key, iv).encryptBase64(data)
+
+    fun desDecodeToString(data: String, key: String, transformation: String, iv: String): String =
+        SymmetricCrypto(transformation, key, iv).decryptStr(data)
+
+    fun desBase64DecodeToString(data: String, key: String, transformation: String, iv: String): String =
+        SymmetricCrypto(transformation, key, iv).decryptStr(data)
+
+    fun desEncodeToString(data: String, key: String, transformation: String, iv: String): String =
+        String(SymmetricCrypto(transformation, key, iv).encrypt(data))
+
+    fun desEncodeToBase64String(data: String, key: String, transformation: String, iv: String): String =
+        SymmetricCrypto(transformation, key, iv).encryptBase64(data)
+
+    fun tripleDESDecodeStr(data: String, key: String, mode: String, padding: String, iv: String): String =
+        SymmetricCrypto("DESede/$mode/$padding", key, iv).decryptStr(data)
+
+    /** Key is Base64, IV is plain text. */
+    fun tripleDESDecodeArgsBase64Str(data: String, key: String, mode: String, padding: String, iv: String): String =
+        SymmetricCrypto("DESede/$mode/$padding", b64(key), iv.toByteArray()).decryptStr(data)
+
+    fun tripleDESEncodeBase64Str(data: String, key: String, mode: String, padding: String, iv: String): String =
+        SymmetricCrypto("DESede/$mode/$padding", key, iv).encryptBase64(data)
+
+    fun tripleDESEncodeArgsBase64Str(data: String, key: String, mode: String, padding: String, iv: String): String =
+        SymmetricCrypto("DESede/$mode/$padding", b64(key), iv.toByteArray()).encryptBase64(data)
+
+    private fun b64(s: String): ByteArray = Base64.getMimeDecoder().decode(s)
+
     fun digestHex(data: String, algorithm: String): String =
         MessageDigest.getInstance(algorithm).digest(data.toByteArray()).toHex()
 
@@ -200,8 +381,73 @@ open class JsExtensions(open val source: BookSource?) {
 
     fun logType(any: Any?) = RuleLog.log(any?.javaClass?.name ?: "null")
 
-    fun toast(msg: Any?) = RuleLog.log("toast: ${JsEngine.toStr(msg)}")
+    fun toast(msg: Any?) {
+        val text = "${getTag().orEmpty()}: ${JsEngine.toStr(msg)}"
+        RuleLog.log("toast: $text")
+        Host.current?.toast(text)
+    }
+
     fun longToast(msg: Any?) = toast(msg)
+
+    private companion object {
+        val TITLE_NUM = Regex("(第)(.+?)(章)")
+    }
+}
+
+/** Same shape as Legado's JsURL: `java.toURL(u).searchParams.get("id")`. */
+class JsURL(url: String, baseUrl: String? = null) {
+    val searchParams: Map<String, String>?
+    val host: String
+    val origin: String
+    val pathname: String
+
+    init {
+        val u = if (!baseUrl.isNullOrEmpty()) URL(URL(baseUrl), url) else URL(url)
+        host = u.host
+        origin = if (u.port > 0) "${u.protocol}://$host:${u.port}" else "${u.protocol}://$host"
+        pathname = u.path
+        searchParams = u.query?.let { q ->
+            q.split('&').mapNotNull { p ->
+                val kv = p.split('=', limit = 2)
+                if (kv.size == 2) kv[0] to URLDecoder.decode(kv[1], "UTF-8") else null
+            }.toMap()
+        }
+    }
+}
+
+private val CN_DIGITS = mapOf(
+    '零' to 0, '〇' to 0, '一' to 1, '壹' to 1, '二' to 2, '两' to 2, '贰' to 2, '三' to 3, '叁' to 3,
+    '四' to 4, '肆' to 4, '五' to 5, '伍' to 5, '六' to 6, '陆' to 6, '七' to 7, '柒' to 7,
+    '八' to 8, '捌' to 8, '九' to 9, '玖' to 9,
+)
+private val CN_UNITS = mapOf('十' to 10, '拾' to 10, '百' to 100, '佰' to 100, '千' to 1000, '仟' to 1000)
+
+/** "一百二十三" / "１２３" / "一二三" → 123; -1 if [s] is not a number. */
+internal fun chineseToInt(s: String): Int {
+    val t = buildString {
+        for (c in s) if (!c.isWhitespace()) append(if (c in '０'..'９') '0' + (c - '０') else c)
+    }
+    if (t.isEmpty()) return -1
+    t.toIntOrNull()?.let { return it }
+    if (t.all { it in CN_DIGITS }) return t.fold(0) { acc, c -> acc * 10 + CN_DIGITS.getValue(c) }
+    var total = 0L
+    var section = 0
+    var digit = 0
+    for (c in t) {
+        when {
+            c in CN_DIGITS -> digit = CN_DIGITS.getValue(c)
+            c in CN_UNITS -> {
+                section += (if (digit == 0) 1 else digit) * CN_UNITS.getValue(c)
+                digit = 0
+            }
+            c == '万' || c == '亿' -> {
+                total = (total + section + digit) * if (c == '万') 10_000 else 100_000_000
+                section = 0; digit = 0
+            }
+            else -> return -1
+        }
+    }
+    return (total + section + digit).takeIf { it <= Int.MAX_VALUE }?.toInt() ?: -1
 }
 
 internal fun Map<*, *>?.toStringMap(): Map<String, String>? =

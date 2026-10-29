@@ -77,9 +77,12 @@ class CompatHarness {
             var failed = false
             for ((path, s) in all) {
                 val isJsField = path == ".jsLib" || path == ".loginCheckJs" || path.endsWith(".preUpdateJs") ||
-                    path.endsWith(".formatJs") || path == ".coverDecodeJs" || path.endsWith(".webJs") ||
-                    (path == ".loginUrl" && !s.trim().startsWith("http") && s.isNotBlank())
-                val snippets = if (isJsField) listOf(s.removePrefix("@js:").removePrefix("<js>").removeSuffix("</js>")) else jsSnippets(s)
+                    path.endsWith(".formatJs") || path == ".coverDecodeJs" || path.endsWith(".webJs")
+                val snippets = when {
+                    path == ".loginUrl" -> listOfNotNull(src.getLoginJs())
+                    isJsField -> listOf(s.removePrefix("@js:").removePrefix("<js>").removeSuffix("</js>"))
+                    else -> jsSnippets(s)
+                }
                 for (js in snippets) {
                     jsTotal++
                     val err = JsEngine.syntaxError(js) ?: continue

@@ -162,7 +162,7 @@ object WebBook {
             pageUrl = res.url()
             body = res.body().orEmpty()
         }
-        if (reverse) chapters.reverse()
+        if (reverse != book.reverseToc) chapters.reverse()
         if (chapters.isEmpty()) throw SourceException("目录为空")
         val formatJs = rule.formatJs?.takeIf { it.isNotBlank() }
         chapters.forEachIndexed { i, c ->

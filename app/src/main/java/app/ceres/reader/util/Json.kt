@@ -38,6 +38,10 @@ val GSON: Gson = GsonBuilder()
     .registerTypeAdapter(TocRule::class.java, ruleDeserializer<TocRule>())
     .registerTypeAdapter(ContentRule::class.java, ruleDeserializer<ContentRule>())
     .registerTypeAdapter(ReviewRule::class.java, ruleDeserializer<ReviewRule>())
+    // Some sources write `header` etc. as a JSON object instead of a string.
+    .registerTypeAdapter(String::class.java, JsonDeserializer { json, _, _ ->
+        if (json.isJsonPrimitive) json.asString else if (json.isJsonNull) null else json.toString()
+    })
     .create()
 
 fun parseStringMap(json: String?): Map<String, String> {

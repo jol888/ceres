@@ -40,14 +40,20 @@ class AnalyzeUrl(
     var body: String? = null
         private set
     private var charset: String? = null
-    private var type: String? = null
+    var type: String? = null
+        private set
     private var retry = 0
+    var useWebView = false
+        private set
+    var webJs: String? = null
+    var sourceRegex: String? = null
     private val baseUrl: String
     val headerMap = LinkedHashMap<String, String>()
 
     init {
         this.baseUrl = (baseUrl ?: source?.bookSourceUrl).orEmpty().split(PARAM, 2)[0]
         loadSourceHeaders()
+        loadLoginHeaders()
         headerOverride?.let { headerMap.putAll(it) }
         initUrl()
         forceMethod?.let { method = it }
@@ -63,6 +69,10 @@ class AnalyzeUrl(
             else -> raw
         }
         headerMap.putAll(parseStringMap(json))
+    }
+
+    private fun loadLoginHeaders() {
+        source?.getLoginHeaderMap()?.let { headerMap.putAll(it) }
     }
 
     private fun initUrl() {
@@ -126,9 +136,8 @@ class AnalyzeUrl(
         }
         (opt["type"] as? String)?.let { type = it }
         opt["retry"]?.let { retry = JsEngine.toStr(it).toIntOrNull() ?: 0 }
-        if (opt["webView"].let { it != null && it != false && it != "" && it != "false" }) {
-            RuleLog.log("不支持 webView 请求，按普通请求处理")
-        }
+        useWebView = opt["webView"].let { it != null && it != false && it != "" && it != "false" }
+        (opt["webJs"] as? String)?.takeIf { it.isNotBlank() }?.let { webJs = it }
         (opt["js"] as? String)?.takeIf { it.isNotBlank() }?.let {
             url = JsEngine.toStr(evalJs(it, url))
         }
@@ -186,6 +195,30 @@ class AnalyzeUrl(
             val bytes = runCatching { Base64.getMimeDecoder().decode(data) }.getOrDefault(ByteArray(0))
             return StrResponse(url, String(bytes, cs()))
         }
+        val host = Host.current
+        if (useWebView && host != null) {
+            RuleLog.log("⇒ WebView $method $url")
+            val html = if (method == "POST") execute { resp, bytes -> Http.decode(bytes, resp, charset) } else null
+            val text = host.webView(html, url, webJs, headerMap, sourceRegex)
+            return StrResponse(url, text)
+        }
+        if (useWebView) RuleLog.log("无 WebView 环境，按普通请求处理")
+        return execute { resp, bytes ->
+            val text = if (type != null) bytes.toHex() else Http.decode(bytes, resp, charset)
+            val headers = resp.headers.names().associate { it.lowercase() to resp.headers(it).joinToString("; ") }
+            StrResponse(resp.request.url.toString(), text, resp.code, headers)
+        }
+    }
+
+    fun getByteArray(): ByteArray {
+        if (url.startsWith("data:", true)) {
+            return runCatching { Base64.getMimeDecoder().decode(url.substringAfter("base64,", "")) }
+                .getOrDefault(ByteArray(0))
+        }
+        return execute { _, bytes -> bytes }
+    }
+
+    private fun <T> execute(read: (okhttp3.Response, ByteArray) -> T): T {
         RuleLog.log("⇒ $method $url")
         val builder = Request.Builder().url(url)
         headerMap.forEach { (k, v) -> runCatching { builder.header(k, v) } }
@@ -213,9 +246,7 @@ class AnalyzeUrl(
                         val setCookies = resp.headers("Set-Cookie").map { it.substringBefore(';') }
                         if (setCookies.isNotEmpty()) CookieStore.replaceCookie(url, setCookies.joinToString("; "))
                     }
-                    val text = if (type != null) bytes.toHex() else Http.decode(bytes, resp, charset)
-                    val headers = resp.headers.names().associate { it.lowercase() to resp.headers(it).joinToString("; ") }
-                    return StrResponse(resp.request.url.toString(), text, resp.code, headers)
+                    return read(resp, bytes)
                 }
             } catch (e: Exception) {
                 lastError = e

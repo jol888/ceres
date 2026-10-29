@@ -1,7 +1,10 @@
 package app.ceres.reader.data.model
 
+import app.ceres.reader.rule.AnalyzeRule
 import app.ceres.reader.rule.Kv
 import app.ceres.reader.util.GSON
+import app.ceres.reader.util.absoluteUrl
+import app.ceres.reader.util.parseAnyMap
 import app.ceres.reader.util.parseStringMap
 
 /**
@@ -64,6 +67,40 @@ data class BookSource(
     fun getLoginHeaderMap(): Map<String, String> = parseStringMap(getLoginHeader())
     fun putLoginHeader(header: String) = Kv.put("loginHeader_${getKey()}", header)
     fun removeLoginHeader() = Kv.put("loginHeader_${getKey()}", null)
+
+    /** loginUrl as script: `@js:…`, `<js>…</js>` or bare JS defining `login()`; null for a web login URL. */
+    fun getLoginJs(): String? {
+        val raw = loginUrl?.trim().orEmpty()
+        return when {
+            raw.isEmpty() -> null
+            raw.startsWith("@js:", true) -> raw.substring(4)
+            raw.startsWith("<js>", true) -> raw.substring(4, raw.lastIndexOf('<').takeIf { it > 4 } ?: raw.length)
+            raw.startsWith("http", true) || raw.startsWith("{") -> null
+            else -> raw
+        }
+    }
+
+    /** Page for web login: an http loginUrl, or `{"url": "..."}`. */
+    fun getLoginWebUrl(): String? {
+        val raw = loginUrl?.trim().orEmpty()
+        val url = when {
+            raw.startsWith("http", true) -> raw
+            raw.startsWith("{") -> parseAnyMap(raw)["url"]?.toString()
+            else -> null
+        }
+        return url?.takeIf { it.isNotBlank() }?.let { absoluteUrl(getKey(), it) }
+    }
+
+    /** Runs the source's `login()` function; loginUi values are available via [getLoginInfoMap]. */
+    fun login() {
+        val js = getLoginJs()?.takeIf { it.isNotBlank() } ?: return
+        evalJS(
+            "$js\nif (typeof login == 'function') { login.apply(this); } " +
+                "else { throw('Function login not implements!!!'); }"
+        )
+    }
+
+    fun evalJS(js: String): Any? = AnalyzeRule(null, this).setContent(null, getKey()).evalJS(js)
 
     fun hasReview(): Boolean = ruleReview?.configuredSummaryUrl() != null
 

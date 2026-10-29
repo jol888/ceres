@@ -1,6 +1,7 @@
 package app.ceres.reader.data.model
 
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import app.ceres.reader.util.parseStringMap
@@ -45,6 +46,10 @@ data class Book(
     override var variable: String? = null,
 ) : RuleData {
     val isLocal: Boolean get() = origin == LOCAL_ORIGIN
+
+    /** Set by TOC rules via `book.setReverseToc(true)`; flips the parsed chapter order. */
+    @Ignore
+    var reverseToc: Boolean = false
 }
 
 @Entity(

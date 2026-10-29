@@ -24,6 +24,35 @@ object Kv : KeyValueStore {
     override fun put(key: String, value: String?) = store.put(key, value)
 }
 
+/**
+ * Platform services that need Android UI. Calls block the (background) rule thread until the
+ * UI finishes. Absent on the JVM, where callers fall back to plain HTTP.
+ */
+interface JsHost {
+    fun toast(msg: String)
+
+    /** Loads [url] (or [html] with [url] as base) off-screen, runs [js] and returns its result,
+     *  or the page HTML when [js] is blank. With [sourceRegex], returns the first matching resource URL's body. */
+    fun webView(html: String?, url: String?, js: String?, headers: Map<String, String>, sourceRegex: String?): String?
+
+    /** Shows [url] to the user and returns once they close it, with the final URL and page HTML. */
+    fun browse(url: String, title: String?, headers: Map<String, String>): StrResponse
+
+    /** Shows the captcha image and returns what the user typed. */
+    fun verificationCode(imageUrl: String): String
+
+    fun openUrl(url: String)
+}
+
+object Host {
+    @Volatile
+    var current: JsHost? = null
+
+    /** Sandbox for `java.downloadFile` / `readTxtFile` etc. */
+    @Volatile
+    var filesDir: java.io.File = java.io.File(System.getProperty("java.io.tmpdir"), "ceres-js")
+}
+
 /** Debug log sink for rule execution; set by the source debugger. */
 object RuleLog {
     @Volatile

@@ -166,6 +166,15 @@ class WebBookTest {
     }
 
     @Test
+    fun ruleCanReverseToc() {
+        val src = source().apply { ruleToc!!.preUpdateJs = "book.setReverseToc(true)" }
+        val book = Book(bookUrl = "$base/book/1", tocUrl = "$base/book/1/toc", origin = src.bookSourceUrl)
+        val chapters = WebBook.getChapterList(src, book)
+        assertEquals(listOf("第三章 终", "第二章 继续", "第一章 开始"), chapters.map { it.title })
+        assertEquals(listOf(0, 1, 2), chapters.map { it.index })
+    }
+
+    @Test
     fun emptySearchPageIsNoResults() {
         assertEquals(emptyList<Any>(), WebBook.search(source(), "无"))
     }
