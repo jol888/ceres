@@ -32,14 +32,14 @@ interface JsHost {
     fun toast(msg: String)
 
     /** Loads [url] (or [html] with [url] as base) off-screen, runs [js] and returns its result,
-     *  or the page HTML when [js] is blank. With [sourceRegex], returns the first matching resource URL's body. */
+     *  or the page HTML when [js] is blank. With [sourceRegex], returns the first loaded resource URL matching it. */
     fun webView(html: String?, url: String?, js: String?, headers: Map<String, String>, sourceRegex: String?): String?
 
     /** Shows [url] to the user and returns once they close it, with the final URL and page HTML. */
     fun browse(url: String, title: String?, headers: Map<String, String>): StrResponse
 
-    /** Shows the captcha image and returns what the user typed. */
-    fun verificationCode(imageUrl: String): String
+    /** Shows the captcha [image] and returns what the user typed. */
+    fun verificationCode(imageUrl: String, image: ByteArray?): String
 
     fun openUrl(url: String)
 }

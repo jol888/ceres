@@ -90,7 +90,9 @@ open class JsExtensions(open val source: BookSource?) {
 
     fun getVerificationCode(imageUrl: String): String {
         val host = Host.current ?: return "".also { RuleLog.log("无界面，无法输入验证码: $imageUrl") }
-        return host.verificationCode(imageUrl)
+        val image = runCatching { AnalyzeUrl(imageUrl, source = source).getByteArray() }
+            .onFailure { RuleLog.log("验证码图片加载失败: ${it.message}") }.getOrNull()
+        return host.verificationCode(imageUrl, image)
     }
 
     fun openUrl(url: String) = startBrowser(url, null)

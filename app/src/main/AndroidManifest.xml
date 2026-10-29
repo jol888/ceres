@@ -29,5 +29,15 @@
                 <data android:scheme="yuedu" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".web.BrowserActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".web.CaptchaActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

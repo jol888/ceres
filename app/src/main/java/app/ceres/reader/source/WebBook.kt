@@ -240,7 +240,10 @@ object WebBook {
         val first = AnalyzeUrl(
             chapter.url, baseUrl = chapter.baseUrl.ifBlank { book.bookUrl }, source = source,
             ruleData = book, chapter = chapter,
-        ).getStrResponse()
+        ).apply {
+            rule.webJs?.takeIf { it.isNotBlank() }?.let { webJs = it }
+            rule.sourceRegex?.takeIf { it.isNotBlank() }?.let { sourceRegex = it }
+        }.getStrResponse()
         val sb = StringBuilder()
         val visited = HashSet<String>()
         var pageUrl = first.url()
