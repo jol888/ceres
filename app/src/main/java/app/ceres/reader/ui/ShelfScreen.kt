@@ -29,7 +29,7 @@ fun ShelfScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val books by AppGraph.books.shelf().collectAsState(initial = null)
+    val books by remember { AppGraph.books.shelf() }.collectAsState(initial = null)
     val progress by AppGraph.cache.progress.collectAsState()
     var menuFor by remember { mutableStateOf<Book?>(null) }
     var importing by remember { mutableStateOf(false) }

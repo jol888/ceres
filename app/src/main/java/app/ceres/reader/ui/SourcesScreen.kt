@@ -32,17 +32,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.ceres.reader.AppGraph
-import app.ceres.reader.data.model.SourceEntity
+import app.ceres.reader.data.model.SourceItem
 import kotlinx.coroutines.launch
 
 @Composable
 fun SourcesScreen(onBack: () -> Unit, openDebug: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val sources by AppGraph.sources.observeAll().collectAsState(initial = null)
+    val sources by AppGraph.sources.items.collectAsState(initial = null)
     var showImport by remember { mutableStateOf(false) }
     var urlInput by remember { mutableStateOf("") }
-    var menuFor by remember { mutableStateOf<SourceEntity?>(null) }
+    var menuFor by remember { mutableStateOf<SourceItem?>(null) }
     var busy by remember { mutableStateOf(false) }
 
     fun runImport(block: suspend () -> Int) {
@@ -57,8 +57,7 @@ fun SourcesScreen(onBack: () -> Unit, openDebug: (String) -> Unit) {
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) runImport {
-            val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }.orEmpty()
-            AppGraph.sources.importJson(text)
+            AppGraph.sources.importStream { context.contentResolver.openInputStream(uri) }
         }
     }
 
@@ -139,10 +138,7 @@ fun SourcesScreen(onBack: () -> Unit, openDebug: (String) -> Unit) {
                     }
                     InkButton("导入内置示例（维基文库）", Modifier.fillMaxWidth()) {
                         showImport = false
-                        runImport {
-                            val text = context.assets.open("sample_sources.json").use { it.readBytes().decodeToString() }
-                            AppGraph.sources.importJson(text)
-                        }
+                        runImport { AppGraph.sources.importStream { context.assets.open("sample_sources.json") } }
                     }
                 }
             },

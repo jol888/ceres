@@ -14,6 +14,7 @@ import app.ceres.reader.data.model.Book
 import app.ceres.reader.data.model.BookChapter
 import app.ceres.reader.data.model.KvEntry
 import app.ceres.reader.data.model.SourceEntity
+import app.ceres.reader.data.model.SourceItem
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -63,8 +64,8 @@ interface ChapterDao {
 
 @Dao
 interface SourceDao {
-    @Query("SELECT * FROM sources ORDER BY sortOrder, name")
-    fun observeAll(): Flow<List<SourceEntity>>
+    @Query("SELECT url, name, `group`, enabled, hasReview FROM sources ORDER BY sortOrder, name")
+    fun observeItems(): Flow<List<SourceItem>>
 
     @Query("SELECT * FROM sources WHERE enabled = 1 ORDER BY sortOrder, name")
     suspend fun enabled(): List<SourceEntity>

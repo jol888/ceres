@@ -14,6 +14,7 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.io.RandomAccessFile
 import java.util.concurrent.ConcurrentHashMap
 
 class BookRepository(
@@ -79,9 +80,38 @@ class BookRepository(
         if (!book.isLocal) bookDir(book).deleteRecursively()
     }
 
+    /** Stores a local book as one file; each chapter's url is `local:<byteOffset>+<byteLength>`. */
+    fun writeLocalContent(book: Book, chapters: List<Pair<String, List<String>>>): List<BookChapter> {
+        val file = File(bookDir(book), LOCAL_CONTENT)
+        file.parentFile?.mkdirs()
+        val result = ArrayList<BookChapter>(chapters.size)
+        file.outputStream().buffered(1 shl 16).use { out ->
+            var pos = 0L
+            chapters.forEachIndexed { i, (title, paragraphs) ->
+                val bytes = paragraphs.joinToString("\n").toByteArray()
+                out.write(bytes)
+                result.add(BookChapter(bookUrl = book.bookUrl, index = i, url = "local:$pos+${bytes.size}", title = title))
+                pos += bytes.size
+            }
+        }
+        return result
+    }
+
+    private suspend fun readLocal(book: Book, start: Long, length: Int): List<String> =
+        runInterruptible(Dispatchers.IO) {
+            val buf = ByteArray(length)
+            RandomAccessFile(File(bookDir(book), LOCAL_CONTENT), "r").use { it.seek(start); it.readFully(buf) }
+            String(buf).split('\n').filter { it.isNotEmpty() }
+        }
+
     private val inFlight = ConcurrentHashMap<String, Mutex>()
 
     suspend fun content(book: Book, chapter: BookChapter, next: BookChapter?, useCache: Boolean = true): List<String> {
+        if (book.isLocal) {
+            LOCAL_RANGE.matchEntire(chapter.url)?.let { m ->
+                return readLocal(book, m.groupValues[1].toLong(), m.groupValues[2].toInt())
+            }
+        }
         val f = chapterFile(book, chapter)
         if (useCache && f.exists()) return readCache(f)
         if (book.isLocal) throw SourceException("本地章节内容缺失")
@@ -124,4 +154,9 @@ class BookRepository(
 
     suspend fun hasReviewSource(book: Book): Boolean =
         !book.isLocal && sources.get(book.origin)?.hasReview() == true
+
+    companion object {
+        private const val LOCAL_CONTENT = "content.txt"
+        private val LOCAL_RANGE = Regex("local:(\\d+)\\+(\\d+)")
+    }
 }

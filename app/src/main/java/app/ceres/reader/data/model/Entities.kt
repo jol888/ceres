@@ -76,6 +76,15 @@ data class SourceEntity(
     val json: String,
 )
 
+/** List row for the sources screen; leaves out the (large) `json` column. */
+data class SourceItem(
+    val url: String,
+    val name: String,
+    val group: String?,
+    val enabled: Boolean,
+    val hasReview: Boolean,
+)
+
 @Entity(tableName = "kv")
 data class KvEntry(
     @PrimaryKey val key: String,

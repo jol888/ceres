@@ -2,6 +2,7 @@ package app.ceres.reader.data
 
 import app.ceres.reader.data.model.BookSource
 import app.ceres.reader.data.model.SourceEntity
+import app.ceres.reader.data.model.SourceItem
 import app.ceres.reader.rule.Http
 import app.ceres.reader.util.GSON
 import app.ceres.reader.util.parseBookSources
@@ -14,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap
 class SourceRepository(private val dao: SourceDao) {
     private val parsed = ConcurrentHashMap<String, Pair<String, BookSource>>()
 
-    fun observeAll(): Flow<List<SourceEntity>> = dao.observeAll()
+    val items: Flow<List<SourceItem>> = dao.observeItems()
 
     suspend fun get(url: String): BookSource? = dao.get(url)?.let(::toSource)
 
@@ -29,18 +30,20 @@ class SourceRepository(private val dao: SourceDao) {
 
     /** Imports a JSON array/object of Legado sources. Returns the number imported. */
     suspend fun importJson(json: String): Int {
-        val sources = withContext(Dispatchers.Default) { parseBookSources(json) }
-        val entities = sources.map { s ->
-            SourceEntity(
-                url = s.bookSourceUrl,
-                name = s.bookSourceName.ifBlank { s.bookSourceUrl },
-                group = s.bookSourceGroup,
-                enabled = s.enabled,
-                sortOrder = s.customOrder,
-                hasReview = s.hasReview(),
-                json = s.toJson(),
-            )
+        val entities = withContext(Dispatchers.Default) {
+            parseBookSources(json).map { s ->
+                SourceEntity(
+                    url = s.bookSourceUrl,
+                    name = s.bookSourceName.ifBlank { s.bookSourceUrl },
+                    group = s.bookSourceGroup,
+                    enabled = s.enabled,
+                    sortOrder = s.customOrder,
+                    hasReview = s.hasReview(),
+                    json = s.toJson(),
+                ).also { e -> parsed[e.url] = e.json to s }
+            }
         }
+        if (entities.isEmpty()) throw IllegalArgumentException("没有识别到书源（需要阅读格式的 JSON）")
         dao.upsertAll(entities)
         return entities.size
     }
@@ -48,9 +51,18 @@ class SourceRepository(private val dao: SourceDao) {
     suspend fun importFromUrl(url: String): Int {
         val body = withContext(Dispatchers.IO) {
             val req = Request.Builder().url(url.trim()).header("User-Agent", Http.DEFAULT_UA).build()
-            Http.client.newCall(req).execute().use { it.body.string() }
+            Http.client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw java.io.IOException("HTTP ${resp.code}")
+                resp.body.string()
+            }
         }
         return importJson(body)
+    }
+
+    suspend fun importStream(open: () -> java.io.InputStream?): Int {
+        val text = withContext(Dispatchers.IO) { open()?.use { it.readBytes().decodeToString() } }
+            ?: throw java.io.IOException("无法读取文件")
+        return importJson(text)
     }
 
     suspend fun exportAll(): String {

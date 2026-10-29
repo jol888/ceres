@@ -38,10 +38,7 @@ class LocalImporter(private val context: Context, private val books: BookReposit
             totalChapterNum = parsed.chapters.size,
             latestChapterTitle = parsed.chapters.last().first,
         )
-        val chapters = parsed.chapters.mapIndexed { i, (title, _) ->
-            BookChapter(bookUrl = book.bookUrl, index = i, url = "local:$i", title = title)
-        }
-        chapters.forEachIndexed { i, c -> books.writeCache(book, c, parsed.chapters[i].second) }
+        val chapters = books.writeLocalContent(book, parsed.chapters)
         db.bookDao().upsert(book)
         db.chapterDao().replace(book.bookUrl, chapters)
         book
@@ -56,9 +53,9 @@ class LocalImporter(private val context: Context, private val books: BookReposit
 
     companion object {
         private val CHAPTER = Regex(
-            "^[ \\t\\u3000]*((第[0-9零〇一二两三四五六七八九十百千万]+[章节回卷集部篇])|序章|序言|楔子|引子|番外|尾声|后记|Chapter\\s*\\d+)[^\\n]{0,40}$",
-            RegexOption.MULTILINE,
+            "((第[0-9零〇一二两三四五六七八九十百千万]+[章节回卷集部篇])|序章|序言|楔子|引子|番外|尾声|后记|Chapter\\s*\\d+).{0,40}",
         )
+        private const val MAX_HEADING = 60
 
         fun decodeText(bytes: ByteArray): String {
             val utf8 = Charsets.UTF_8.newDecoder()
@@ -69,30 +66,56 @@ class LocalImporter(private val context: Context, private val books: BookReposit
             } catch (_: CharacterCodingException) {
                 String(bytes, Charset.forName("GB18030"))
             }
-            return text.removePrefix("\uFEFF").replace("\r\n", "\n").replace('\r', '\n')
+            return text.removePrefix("\uFEFF")
         }
 
+        private fun blank(c: Char) = c.isWhitespace() || c == '\u3000' || c == '\u00A0'
+
+        /** One pass over the lines: trimmed non-empty lines, split into sections at chapter headings. */
         fun parseTxt(bytes: ByteArray, fileName: String): Parsed {
-            val text = decodeText(bytes)
+            var text = decodeText(bytes)
+            if (text.indexOf('\n') < 0) text = text.replace('\r', '\n')
             val title = fileName.substringBeforeLast('.').substringBefore("作者").trim('《', '》', ' ')
-            val matches = CHAPTER.findAll(text).toList()
+            val sections = ArrayList<Pair<String?, ArrayList<String>>>()
+            var cur = ArrayList<String>()
+            sections.add(null to cur)
+            var headings = 0
+            var i = 0
+            val n = text.length
+            while (i < n) {
+                var j = text.indexOf('\n', i)
+                if (j < 0) j = n
+                var s = i
+                var e = j
+                while (s < e && blank(text[s])) s++
+                while (e > s && blank(text[e - 1])) e--
+                if (e > s) {
+                    val line = text.substring(s, e)
+                    if (e - s <= MAX_HEADING && CHAPTER.matches(line)) {
+                        headings++
+                        cur = ArrayList()
+                        sections.add(line to cur)
+                    } else {
+                        cur.add(line)
+                    }
+                }
+                i = j + 1
+            }
             val chapters = ArrayList<Pair<String, List<String>>>()
-            if (matches.size >= 2) {
-                val preface = text.substring(0, matches.first().range.first)
-                paragraphs(preface).takeIf { it.isNotEmpty() }?.let { chapters.add("前言" to it) }
-                matches.forEachIndexed { i, m ->
-                    val end = if (i + 1 < matches.size) matches[i + 1].range.first else text.length
-                    val body = paragraphs(text.substring(m.range.last + 1, end))
-                    chapters.add(m.value.trim() to body)
+            if (headings >= 2) {
+                sections.forEach { (heading, body) ->
+                    if (heading == null) { if (body.isNotEmpty()) chapters.add("前言" to body) }
+                    else chapters.add(heading to body)
                 }
             } else {
-                val all = paragraphs(text)
                 var buf = ArrayList<String>()
                 var size = 0
-                for (p in all) {
-                    buf.add(p); size += p.length
-                    if (size > 6000) {
-                        chapters.add("第 ${chapters.size + 1} 部分" to buf); buf = ArrayList(); size = 0
+                for ((heading, body) in sections) {
+                    for (p in listOfNotNull(heading) + body) {
+                        buf.add(p); size += p.length
+                        if (size > 6000) {
+                            chapters.add("第 ${chapters.size + 1} 部分" to buf); buf = ArrayList(); size = 0
+                        }
                     }
                 }
                 if (buf.isNotEmpty()) chapters.add("第 ${chapters.size + 1} 部分" to buf)
@@ -100,16 +123,14 @@ class LocalImporter(private val context: Context, private val books: BookReposit
             return Parsed(title.ifBlank { "未命名" }, "", chapters.filter { it.second.isNotEmpty() || chapters.size == 1 })
         }
 
-        private fun paragraphs(s: String) = s.split('\n')
-            .map { it.trim { c -> c.isWhitespace() || c == '\u3000' } }
-            .filter { it.isNotEmpty() }
+        private val EPUB_TEXT = Regex("(?i)\\.(x?html?|opf|ncx|xml)$")
 
         fun parseEpub(bytes: ByteArray, fileName: String): Parsed {
             val files = HashMap<String, ByteArray>()
             ZipInputStream(bytes.inputStream()).use { zip ->
                 while (true) {
                     val e = zip.nextEntry ?: break
-                    if (!e.isDirectory) files[e.name] = zip.readBytes()
+                    if (!e.isDirectory && EPUB_TEXT.containsMatchIn(e.name)) files[e.name] = zip.readBytes()
                 }
             }
             val container = files["META-INF/container.xml"]?.let { String(it) } ?: error("不是有效的 EPUB")
