@@ -1,0 +1,30 @@
+[
+  {
+    "bookSourceUrl": "https://zh.wikisource.org",
+    "bookSourceName": "维基文库（示例）",
+    "bookSourceGroup": "示例",
+    "bookSourceType": 0,
+    "bookSourceComment": "公有领域古籍。搜索按标题匹配；正文为简体（/zh-hans/ 变体）。无段评。",
+    "enabled": true,
+    "header": "{\"User-Agent\": \"Ceres/0.1 (Android novel reader; personal use)\"}",
+    "searchUrl": "https://zh.wikisource.org/w/api.php?action=query&list=search&srsearch=intitle:{{key}}&srnamespace=0&srlimit=30&format=json",
+    "ruleSearch": {
+      "bookList": "@js:var r = JSON.parse(String(result)).query.search, out = [];\nfor (var i = 0; i < r.length; i++) if (r[i].title.indexOf('/') < 0) out.push(r[i]);\nout",
+      "name": "$.title",
+      "intro": "$.snippet##<[^>]+>",
+      "bookUrl": "https://zh.wikisource.org/zh-hans/{{$.title}}?action=render"
+    },
+    "ruleBookInfo": {
+      "author": "@CSS:#headerContainer a[title^=Author:]@text"
+    },
+    "ruleToc": {
+      "chapterList": "<js>\nvar u = String(baseUrl);\ntry { u = decodeURIComponent(u); } catch (e) {}\nvar s = u.indexOf('/zh-hans/') + 9, q = u.indexOf('?', s);\nvar name = u.substring(s, q < 0 ? u.length : q).replace(/ /g, '_');\nvar els = java.getElements('@CSS:.mw-parser-output a[href]');\nvar out = [], seen = {};\nfor (var i = 0; i < els.size(); i++) {\n  var a = els.get(i), h = String(a.attr('href'));\n  try { h = decodeURIComponent(h); } catch (e) {}\n  h = h.split('#')[0];\n  if (h.indexOf('/wiki/' + name + '/') >= 0 && !seen[h]) { seen[h] = 1; out.push(a); }\n}\nif (out.length == 0) out.push(java.getElement('@CSS:#headerContainer b'));\nout\n</js>",
+      "chapterName": "text",
+      "chapterUrl": "href##^.*?/wiki/([^#]*).*$##https://zh.wikisource.org/zh-hans/$1?action=render"
+    },
+    "ruleContent": {
+      "content": "@CSS:.mw-parser-output > p, .mw-parser-output > dl, .mw-parser-output > div.poem@html",
+      "replaceRegex": "##<sup[^>]*>.*?</sup>"
+    }
+  }
+]

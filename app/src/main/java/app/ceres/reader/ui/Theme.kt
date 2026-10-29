@@ -1,0 +1,76 @@
+package app.ceres.reader.ui
+
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.LocalOverscrollFactory
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+val Ink = Color.Black
+val Paper = Color.White
+val Gray = Color(0xFF666666)
+val LightGray = Color(0xFFDDDDDD)
+
+private val EinkColors = lightColorScheme(
+    primary = Ink, onPrimary = Paper,
+    primaryContainer = LightGray, onPrimaryContainer = Ink,
+    secondary = Ink, onSecondary = Paper,
+    secondaryContainer = LightGray, onSecondaryContainer = Ink,
+    tertiary = Ink, onTertiary = Paper,
+    background = Paper, onBackground = Ink,
+    surface = Paper, onSurface = Ink,
+    surfaceVariant = Paper, onSurfaceVariant = Ink,
+    surfaceTint = Paper,
+    surfaceContainerLowest = Paper, surfaceContainerLow = Paper, surfaceContainer = Paper,
+    surfaceContainerHigh = Paper, surfaceContainerHighest = Paper,
+    inverseSurface = Ink, inverseOnSurface = Paper,
+    outline = Ink, outlineVariant = Gray,
+    error = Ink, onError = Paper, errorContainer = LightGray, onErrorContainer = Ink,
+    scrim = Color(0x66000000),
+)
+
+private val EinkTypography = Typography().run {
+    copy(
+        titleLarge = titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 22.sp),
+        titleMedium = titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 18.sp),
+        bodyLarge = bodyLarge.copy(fontSize = 17.sp),
+        bodyMedium = bodyMedium.copy(fontSize = 15.sp),
+        bodySmall = bodySmall.copy(fontSize = 13.sp, color = Gray),
+        labelLarge = labelLarge.copy(fontSize = 15.sp),
+    )
+}
+
+/** Indication that draws nothing: pressed states would cause extra e-ink refreshes. */
+private object NoIndication : IndicationNodeFactory {
+    override fun create(interactionSource: InteractionSource): DelegatableNode = object : Modifier.Node() {}
+    override fun equals(other: Any?) = other === this
+    override fun hashCode() = 0
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CeresTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = EinkColors, typography = EinkTypography) {
+        CompositionLocalProvider(
+            LocalRippleConfiguration provides null,
+            LocalIndication provides NoIndication,
+            LocalOverscrollFactory provides null,
+        ) {
+            content()
+        }
+    }
+}
+
+val SmallText = TextStyle(fontSize = 13.sp, color = Gray)
