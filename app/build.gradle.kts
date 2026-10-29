@@ -79,7 +79,7 @@ dependencies {
     implementation("org.jsoup:jsoup:1.23.2")
     implementation("cn.wanghaomiao:JsoupXpath:2.5.3")
     implementation("com.jayway.jsonpath:json-path:2.9.0")
-    implementation("org.mozilla:rhino:1.7.15")
+    implementation("org.mozilla:rhino:1.9.2")
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
 

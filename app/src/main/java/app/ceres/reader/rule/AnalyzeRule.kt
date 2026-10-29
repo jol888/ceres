@@ -330,10 +330,8 @@ class AnalyzeRule(
                 }
                 else -> ruleStr
             }
-            if (mode != Mode.Js) {
-                rule = splitPutRule(rule)
-                parseTemplates()
-            }
+            rule = splitPutRule(rule)
+            parseTemplates()
         }
 
         private fun splitPutRule(s: String): String {
@@ -351,7 +349,7 @@ class AnalyzeRule(
             if (matches.isNotEmpty()) {
                 val first = matches.first()
                 val before = rule.substring(0, first.range.first)
-                if (mode != Mode.Regex && (first.range.first == 0 || !before.contains("##"))) {
+                if (mode != Mode.Js && mode != Mode.Regex && (first.range.first == 0 || !before.contains("##"))) {
                     mode = Mode.Regex
                 }
                 for (m in matches) {
@@ -377,8 +375,8 @@ class AnalyzeRule(
             var start = 0
             val head = ruleStr.split("##")[0]
             val matches = REGEX_GROUP.findAll(head).toList()
-            if (matches.isNotEmpty() && mode != Mode.Js) {
-                if (mode != Mode.Regex) mode = Mode.Regex
+            if (matches.isNotEmpty()) {
+                if (mode != Mode.Js && mode != Mode.Regex) mode = Mode.Regex
                 for (m in matches) {
                     if (m.range.first > start) {
                         ruleType.add(DEFAULT_RULE); ruleParam.add(ruleStr.substring(start, m.range.first))

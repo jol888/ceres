@@ -24,8 +24,7 @@ object JsEngine {
         }
 
         override fun makeContext(): Context = super.makeContext().apply {
-            @Suppress("DEPRECATION")
-            optimizationLevel = -1
+            isInterpretedMode = true
             languageVersion = Context.VERSION_ES6
             wrapFactory = this@JsEngine.wrapFactory
         }
@@ -50,6 +49,19 @@ object JsEngine {
         synchronized(scripts) { scripts[js] } ?: cx.compileString(js, "rule", 1, null).also {
             synchronized(scripts) { scripts[js] = it }
         }
+
+    /** Returns the syntax error message, or null when [js] compiles. */
+    fun syntaxError(js: String): String? {
+        val cx = factory.enterContext()
+        return try {
+            cx.compileString(js, "check", 1, null)
+            null
+        } catch (e: Exception) {
+            e.message ?: e.toString()
+        } finally {
+            Context.exit()
+        }
+    }
 
     /** Pays Rhino's one-off initialisation cost off the critical path. */
     fun warmUp() {
