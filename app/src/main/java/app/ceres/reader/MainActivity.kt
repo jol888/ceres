@@ -20,6 +20,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import app.ceres.reader.ui.CeresTheme
 import app.ceres.reader.ui.DetailScreen
+import app.ceres.reader.ui.ExploreScreen
 import app.ceres.reader.ui.ImportLinkDialog
 import app.ceres.reader.util.ImportLink
 import app.ceres.reader.ui.SearchScreen
@@ -85,6 +86,13 @@ class MainActivity : ComponentActivity() {
                             openSearch = { nav.navigate("search") },
                             openSources = { nav.navigate("sources") },
                             openSettings = { nav.navigate("settings") },
+                            openExplore = { nav.navigate("explore") },
+                        )
+                    }
+                    composable("explore") {
+                        ExploreScreen(
+                            onBack = { nav.popBackStack() },
+                            openDetail = { url -> nav.navigate("detail/${Uri.encode(url)}") },
                         )
                     }
                     composable("search") {

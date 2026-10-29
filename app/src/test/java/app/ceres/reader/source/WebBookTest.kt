@@ -48,6 +48,9 @@ class WebBookTest {
                                <a class="next" href="/book/1/toc?p=2">下一页</a>"""
                         )
                     }
+                    "/rank" -> if (url.queryParameter("p") == "1") {
+                        html("""<div class="book"><a href="/book/1">红楼梦</a><span class="author">曹雪芹</span></div>""")
+                    } else html("")
                     "/%E4%B9%A6/2" -> html("""<h1>单页书</h1><ul class="chapters"><li><a href="/c/1">第一章</a></li></ul>""")
                     "/c/1" -> html(
                         """<div id="content"><p>第一章 开始</p><p>段一</p><p>段二</p><p>广告：请访问</p></div>
@@ -172,6 +175,29 @@ class WebBookTest {
         val chapters = WebBook.getChapterList(src, book)
         assertEquals(listOf("第三章 终", "第二章 继续", "第一章 开始"), chapters.map { it.title })
         assertEquals(listOf(0, 1, 2), chapters.map { it.index })
+    }
+
+    @Test
+    fun exploreKindsInAllForms() {
+        val src = source()
+        src.exploreUrl = "榜单::\n总榜::/rank?p={{page}}&&新书::/new"
+        assertEquals(
+            listOf(ExploreKind("榜单", null), ExploreKind("总榜", "/rank?p={{page}}"), ExploreKind("新书", "/new")),
+            WebBook.exploreKinds(src),
+        )
+        src.exploreUrl = """[{"title":"分类","url":""},{"title":"玄幻","url":"/x/{{page}}","style":{}}]"""
+        assertEquals(listOf(ExploreKind("分类", null), ExploreKind("玄幻", "/x/{{page}}")), WebBook.exploreKinds(src))
+        src.exploreUrl = "@js:[1, 2].map(i => '第' + i + '页::/p/' + i).join('\\n')"
+        assertEquals(listOf(ExploreKind("第1页", "/p/1"), ExploreKind("第2页", "/p/2")), WebBook.exploreKinds(src))
+    }
+
+    @Test
+    fun exploreFallsBackToSearchRule() {
+        val src = source()
+        val page1 = WebBook.explore(src, "/rank?p={{page}}", 1)
+        assertEquals(listOf("红楼梦"), page1.map { it.name })
+        assertEquals("$base/book/1", page1[0].bookUrl)
+        assertEquals(emptyList<Any>(), WebBook.explore(src, "/rank?p={{page}}", 2))
     }
 
     @Test

@@ -12,9 +12,12 @@ import app.ceres.reader.rule.RuleLog
 import app.ceres.reader.util.formatAuthor
 import app.ceres.reader.util.formatBookName
 import app.ceres.reader.util.htmlToParagraphs
+import com.google.gson.JsonParser
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 class SourceException(msg: String) : Exception(msg)
+
+data class ExploreKind(val title: String, val url: String?)
 
 /** Blocking source operations; call from a background dispatcher. */
 object WebBook {
@@ -28,6 +31,43 @@ object WebBook {
         if (list.isEmpty() && res.code() >= 400) throw SourceException("服务器返回 HTTP ${res.code()}")
         return list
     }
+
+    /** Discover categories from `exploreUrl`; entries without a URL are section headers. */
+    fun exploreKinds(source: BookSource): List<ExploreKind> {
+        var raw = source.exploreUrl?.trim().orEmpty()
+        if (raw.startsWith("@js:", true)) {
+            raw = JsEngine.toStr(source.evalJS(raw.substring(4))).trim()
+        } else if (raw.startsWith("<js>", true)) {
+            raw = JsEngine.toStr(source.evalJS(raw.substring(4, raw.lastIndexOf('<').takeIf { it > 4 } ?: raw.length))).trim()
+        }
+        if (raw.isEmpty()) return emptyList()
+        if (raw.startsWith("{")) raw = "[${raw.trimEnd(',', ' ', '\n', '\r')}]"
+        if (raw.startsWith("[")) {
+            return JsonParser.parseString(raw).asJsonArray.mapNotNull { el ->
+                if (!el.isJsonObject) return@mapNotNull null
+                val o = el.asJsonObject
+                val title = o.get("title")?.takeIf { it.isJsonPrimitive }?.asString?.trim().orEmpty()
+                val url = o.get("url")?.takeIf { it.isJsonPrimitive }?.asString?.trim()?.takeIf { it.isNotEmpty() }
+                if (title.isEmpty()) null else ExploreKind(title, url)
+            }
+        }
+        return raw.split(EXPLORE_SPLIT).mapNotNull { item ->
+            val title = item.substringBefore("::").trim()
+            val url = item.substringAfter("::", "").trim().takeIf { it.isNotEmpty() }
+            if (title.isEmpty()) null else ExploreKind(title, url)
+        }
+    }
+
+    fun explore(source: BookSource, url: String, page: Int = 1): List<SearchBook> {
+        val au = AnalyzeUrl(url, page = page, baseUrl = source.bookSourceUrl, source = source)
+        val res = au.getStrResponse()
+        val rule = source.ruleExplore?.takeIf { !it.bookList.isNullOrBlank() } ?: source.ruleSearch
+        val list = parseBookList(source, res.body().orEmpty(), res.url(), rule, isSearch = false)
+        if (list.isEmpty() && res.code() >= 400) throw SourceException("服务器返回 HTTP ${res.code()}")
+        return list
+    }
+
+    private val EXPLORE_SPLIT = Regex("(&&|\n)+")
 
     fun parseBookList(
         source: BookSource,

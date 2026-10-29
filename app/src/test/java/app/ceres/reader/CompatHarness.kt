@@ -67,6 +67,8 @@ class CompatHarness {
         var jsTotal = 0
         var jsFailedSources = 0
         var parsedOk = 0
+        var exploreTotal = 0
+        val exploreFailed = ArrayList<String>()
         var loginUiTotal = 0
         var noLoginPath = 0
         val loginUiFailed = ArrayList<String>()
@@ -100,6 +102,14 @@ class CompatHarness {
                 }
             }
             if (failed) jsFailedSources++
+            val explore = src.exploreUrl?.trim().orEmpty()
+            if (explore.isNotEmpty() && !explore.startsWith("@js:", true) && !explore.startsWith("<js>", true)) {
+                exploreTotal++
+                val kinds = runCatching { app.ceres.reader.source.WebBook.exploreKinds(src) }
+                    .onFailure { exploreFailed.add("${it.message?.take(50)} | ${explore.take(50).replace('\n', ' ')}") }
+                    .getOrNull()
+                if (kinds != null && kinds.none { it.url != null }) exploreFailed.add("no urls | ${explore.take(60).replace('\n', ' ')}")
+            }
             if (!src.loginUi.isNullOrBlank()) {
                 loginUiTotal++
                 val rows = app.ceres.reader.ui.parseLoginUi(src.loginUi)
@@ -110,6 +120,8 @@ class CompatHarness {
         }
         println("[compat] loginUi: $loginUiTotal, unparsed ${loginUiFailed.size}, row types $loginTypes, loginUrl unusable: $noLoginPath")
         loginUiFailed.take(5).forEach { println("[compat]   loginUi? $it") }
+        println("[compat] exploreUrl (non-js): $exploreTotal, unusable ${exploreFailed.size}")
+        exploreFailed.take(12).forEach { println("[compat]   explore? $it") }
         println("[compat] parsed: $parsedOk / ${elements.size}")
         parseErrors.entries.sortedByDescending { it.value }.take(10).forEach { println("[compat]   parse ${it.value}x ${it.key}") }
         println("[compat] js snippets: $jsTotal, sources with js syntax errors: $jsFailedSources")

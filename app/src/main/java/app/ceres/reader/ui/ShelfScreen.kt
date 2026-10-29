@@ -26,6 +26,7 @@ fun ShelfScreen(
     openSearch: () -> Unit,
     openSources: () -> Unit,
     openSettings: () -> Unit,
+    openExplore: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -47,6 +48,7 @@ fun ShelfScreen(
 
     Screen(title = "书架", actions = {
         Action("搜索", openSearch)
+        Action("发现", openExplore)
         Action("导入") { picker.launch(arrayOf("text/plain", "application/epub+zip", "application/octet-stream")) }
         Action("书源", openSources)
         Action("设置", openSettings)
