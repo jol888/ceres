@@ -107,7 +107,7 @@ private fun LoginForm(st: LoginState, onBack: () -> Unit) {
         scope.launch {
             val r = withContext(Dispatchers.IO) { runCatching(block) }
             status = r.fold(
-                { v -> "$label 完成" + (v?.let { JsEngine.toStr(it) }?.takeIf { it.isNotBlank() && it != "undefined" }?.let { "：$it" } ?: "") },
+                { v -> "$label 完成" + (v?.takeIf { it != Unit }?.let { JsEngine.toStr(it) }?.takeIf { it.isNotBlank() && it != "undefined" }?.let { "：$it" } ?: "") },
                 { e -> "$label 失败：${e.message ?: e.javaClass.simpleName}" },
             )
             running = false

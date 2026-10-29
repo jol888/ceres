@@ -101,7 +101,10 @@ class ExploreViewModel : ViewModel() {
                     val fresh = list.filter { seen.add(it.bookUrl) }
                     if (fresh.isEmpty()) end = true else { books.addAll(fresh); page = next }
                 }
-                .onFailure { error = "加载失败：${it.message}" }
+                .onFailure {
+                    if (next > 1 && it.message?.contains("HTTP 404") == true) end = true
+                    else error = "加载失败：${it.message}"
+                }
             loading = false
         }
     }

@@ -76,15 +76,27 @@ class AndroidJsHost(context: Context) : JsHost {
         }
     }
 
-    /** Page scripts may fill the DOM late, so retry until the script yields something. */
-    private fun poll(view: WebView, script: String, future: CompletableFuture<String?>, attempt: Int) {
+    /**
+     * Page scripts may fill the DOM late. A source's own script is retried until it yields something;
+     * the default page-HTML read waits until the HTML stops changing between polls.
+     */
+    private fun poll(
+        view: WebView, script: String, future: CompletableFuture<String?>, attempt: Int,
+        last: String? = null, unchanged: Int = 0,
+    ) {
         if (future.isDone) return
+        val waitStable = script == OUTER_HTML
         view.evaluateJavascript(script) { raw ->
             val value = decodeJsResult(raw)
+            val same = if (value != null && value == last) unchanged + 1 else 0
             when {
-                !value.isNullOrEmpty() -> future.complete(value)
-                attempt >= 30 -> future.completeExceptionally(IOException("WebView 脚本没有返回结果"))
-                else -> main.postDelayed({ poll(view, script, future, attempt + 1) }, 200L * minOf(attempt + 1, 5))
+                value.isNullOrEmpty() -> if (attempt >= 30) {
+                    future.completeExceptionally(IOException("WebView 脚本没有返回结果"))
+                } else {
+                    main.postDelayed({ poll(view, script, future, attempt + 1) }, 200L * minOf(attempt + 1, 5))
+                }
+                !waitStable || same >= 2 || attempt >= 15 -> future.complete(value)
+                else -> main.postDelayed({ poll(view, script, future, attempt + 1, value, same) }, 400L)
             }
         }
     }
