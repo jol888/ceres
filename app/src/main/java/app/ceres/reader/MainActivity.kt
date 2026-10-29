@@ -1,13 +1,18 @@
 package app.ceres.reader
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.KeyEvent
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -15,6 +20,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import app.ceres.reader.ui.CeresTheme
 import app.ceres.reader.ui.DetailScreen
+import app.ceres.reader.ui.ImportLinkDialog
+import app.ceres.reader.util.ImportLink
 import app.ceres.reader.ui.SearchScreen
 import app.ceres.reader.ui.SettingsScreen
 import app.ceres.reader.ui.ShelfScreen
@@ -32,11 +39,32 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    private var importLink by mutableStateOf<ImportLink?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleLink(intent)
+    }
+
+    private fun handleLink(intent: Intent?) {
+        val data = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString ?: return
+        val link = ImportLink.parse(data)
+        when {
+            link == null -> Toast.makeText(this, "无法识别的导入链接", Toast.LENGTH_SHORT).show()
+            !link.isBookSource -> Toast.makeText(this, "暂不支持导入 ${link.type}", Toast.LENGTH_SHORT).show()
+            else -> importLink = link
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) handleLink(intent)
         setContent {
             CeresTheme {
+                importLink?.let { link ->
+                    ImportLinkDialog(link) { importLink = null }
+                }
                 val nav = rememberNavController()
                 fun reader(url: String, index: Int? = null) =
                     nav.navigate("reader/${Uri.encode(url)}?index=${index ?: -1}")
