@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -36,7 +37,7 @@ import app.ceres.reader.data.model.SourceItem
 import kotlinx.coroutines.launch
 
 @Composable
-fun SourcesScreen(onBack: () -> Unit, openDebug: (String) -> Unit) {
+fun SourcesScreen(onBack: () -> Unit, openDebug: (String) -> Unit, openLogin: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val sources by AppGraph.sources.items.collectAsState(initial = null)
@@ -149,7 +150,11 @@ fun SourcesScreen(onBack: () -> Unit, openDebug: (String) -> Unit) {
     }
 
     menuFor?.let { s ->
-        OptionsDialog(s.name, listOf(
+        val needsLogin by produceState(false, s.url) {
+            value = AppGraph.sources.get(s.url)?.let { !it.loginUrl.isNullOrBlank() || !it.loginUi.isNullOrBlank() } == true
+        }
+        OptionsDialog(s.name, listOfNotNull(
+            ("登录" to { openLogin(s.url) }).takeIf { needsLogin },
             "调试（搜索→目录→正文→段评）" to { openDebug(s.url) },
             (if (s.enabled) "禁用" else "启用") to { scope.launch { AppGraph.sources.setEnabled(s.url, !s.enabled) }; Unit },
             "删除" to { scope.launch { AppGraph.sources.delete(s.url) }; Unit },

@@ -67,6 +67,10 @@ class CompatHarness {
         var jsTotal = 0
         var jsFailedSources = 0
         var parsedOk = 0
+        var loginUiTotal = 0
+        var noLoginPath = 0
+        val loginUiFailed = ArrayList<String>()
+        val loginTypes = HashMap<String, Int>()
         for ((url, el) in elements) {
             val src = runCatching { GSON.fromJson(el, BookSource::class.java) }
                 .onFailure { parseErrors.merge(it.message?.take(90) ?: it.javaClass.simpleName, 1, Int::plus) }
@@ -96,7 +100,16 @@ class CompatHarness {
                 }
             }
             if (failed) jsFailedSources++
+            if (!src.loginUi.isNullOrBlank()) {
+                loginUiTotal++
+                val rows = app.ceres.reader.ui.parseLoginUi(src.loginUi)
+                if (rows.isEmpty()) loginUiFailed.add(src.loginUi!!.take(60).replace('\n', ' '))
+                rows.forEach { loginTypes.merge(it.type, 1, Int::plus) }
+            }
+            if (!src.loginUrl.isNullOrBlank() && src.getLoginJs() == null && src.getLoginWebUrl() == null) noLoginPath++
         }
+        println("[compat] loginUi: $loginUiTotal, unparsed ${loginUiFailed.size}, row types $loginTypes, loginUrl unusable: $noLoginPath")
+        loginUiFailed.take(5).forEach { println("[compat]   loginUi? $it") }
         println("[compat] parsed: $parsedOk / ${elements.size}")
         parseErrors.entries.sortedByDescending { it.value }.take(10).forEach { println("[compat]   parse ${it.value}x ${it.key}") }
         println("[compat] js snippets: $jsTotal, sources with js syntax errors: $jsFailedSources")

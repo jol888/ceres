@@ -100,7 +100,8 @@ data class BookSource(
         )
     }
 
-    fun evalJS(js: String): Any? = AnalyzeRule(null, this).setContent(null, getKey()).evalJS(js)
+    @JvmOverloads
+    fun evalJS(js: String, result: Any? = null): Any? = AnalyzeRule(null, this).setContent(null, getKey()).evalJS(js, result)
 
     fun hasReview(): Boolean = ruleReview?.configuredSummaryUrl() != null
 

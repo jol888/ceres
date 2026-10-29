@@ -26,6 +26,7 @@ import app.ceres.reader.ui.SearchScreen
 import app.ceres.reader.ui.SettingsScreen
 import app.ceres.reader.ui.ShelfScreen
 import app.ceres.reader.ui.SourceDebugScreen
+import app.ceres.reader.ui.SourceLoginScreen
 import app.ceres.reader.ui.SourcesScreen
 import app.ceres.reader.ui.reader.ReaderScreen
 
@@ -108,7 +109,11 @@ class MainActivity : ComponentActivity() {
                         SourcesScreen(
                             onBack = { nav.popBackStack() },
                             openDebug = { nav.navigate("debug/${Uri.encode(it)}") },
+                            openLogin = { nav.navigate("login/${Uri.encode(it)}") },
                         )
+                    }
+                    composable("login/{url}") { entry ->
+                        SourceLoginScreen(entry.arguments?.getString("url").orEmpty(), onBack = { nav.popBackStack() })
                     }
                     composable("debug/{url}") { entry ->
                         SourceDebugScreen(entry.arguments?.getString("url").orEmpty(), onBack = { nav.popBackStack() })
