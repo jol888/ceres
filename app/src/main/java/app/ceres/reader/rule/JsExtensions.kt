@@ -1,6 +1,7 @@
 package app.ceres.reader.rule
 
 import app.ceres.reader.data.model.BookSource
+import app.ceres.reader.source.fanqie.FanqieUrls
 import app.ceres.reader.util.md5
 import java.io.File
 import java.net.URL
@@ -101,6 +102,16 @@ open class JsExtensions(open val source: BookSource?) {
     // ---- source / book ----
 
     fun getTag(): String? = source?.bookSourceName
+
+    /** 番茄合成地址：搜索结果的 book_id → 详情地址。 */
+    fun fanqieBookUrl(bookId: String?): String = FanqieUrls.book(bookId.orEmpty().trim())
+
+    /** 番茄合成地址：详情/目录里的书籍地址 + itemId → 章节地址。 */
+    fun fanqieChapterUrl(bookUrl: String?, itemId: String?): String {
+        val id = FanqieUrls.bookIdOf(bookUrl)
+            ?: throw IllegalArgumentException("无法从 $bookUrl 解析番茄书籍 id")
+        return FanqieUrls.chapter(id, itemId.orEmpty().trim())
+    }
 
     /** Legado refreshes the open book when a rule calls these; Ceres re-reads on every open. */
     fun refreshBookUrl() = Unit

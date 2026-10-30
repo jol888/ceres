@@ -12,7 +12,8 @@ fun absoluteUrl(base: String?, relative: String?): String {
     val rel = relative?.trim().orEmpty()
     if (rel.isEmpty()) return base.orEmpty()
     if (rel.startsWith("http://", true) || rel.startsWith("https://", true) ||
-        rel.startsWith("data:", true) || rel.startsWith("local:", true)
+        rel.startsWith("data:", true) || rel.startsWith("local:", true) ||
+        rel.startsWith("fanqie:", true)
     ) return rel
     if (base.isNullOrBlank()) return rel
     val cleanBase = base.substringBefore(",{").trim()

@@ -3,6 +3,7 @@ package app.ceres.reader.rule
 import app.ceres.reader.data.model.BookChapter
 import app.ceres.reader.data.model.BookSource
 import app.ceres.reader.data.model.RuleData
+import app.ceres.reader.source.fanqie.FanqieUrls
 import app.ceres.reader.util.absoluteUrl
 import app.ceres.reader.util.isJsonLike
 import app.ceres.reader.util.parseAnyMap
@@ -190,6 +191,9 @@ class AnalyzeUrl(
     }
 
     fun getStrResponse(): StrResponse {
+        if (url.startsWith(FanqieUrls.SCHEME, true)) {
+            return StrResponse(url, FanqieUrls.resolve(url, baseUrl))
+        }
         if (url.startsWith("data:", true)) {
             val data = url.substringAfter("base64,", "")
             val bytes = runCatching { Base64.getMimeDecoder().decode(data) }.getOrDefault(ByteArray(0))
@@ -211,6 +215,9 @@ class AnalyzeUrl(
     }
 
     fun getByteArray(): ByteArray {
+        if (url.startsWith(FanqieUrls.SCHEME, true)) {
+            return FanqieUrls.resolve(url, baseUrl).toByteArray()
+        }
         if (url.startsWith("data:", true)) {
             return runCatching { Base64.getMimeDecoder().decode(url.substringAfter("base64,", "")) }
                 .getOrDefault(ByteArray(0))
