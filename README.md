@@ -25,7 +25,7 @@
 
 ## 番茄小说支持
 
-仓库内置 `fanqie://` 合成地址与原生番茄客户端，能够处理番茄 App 的签名请求、正文解密和段评接口。搜索使用公开的 `novel.snssdk.com` 接口；详情、目录、正文、段评由原生客户端完成。
+仓库内置 `fanqie://` 合成地址与番茄协议实现（Ceres 自己的 Kotlin 代码，不打包、不依赖番茄 App），能够处理番茄的签名请求、正文解密和段评接口。搜索使用公开的 `novel.snssdk.com` 接口；详情、目录、正文、段评由 Ceres 内的番茄模块完成。
 
 配套书源单独发布：[jol888/fanqie-legado-source](https://github.com/jol888/fanqie-legado-source)。该源依赖本仓库的 `fanqie://` 实现，原版 Legado 无法直接使用。
 
@@ -64,7 +64,7 @@ app/src/main/java/app/ceres/reader/
 ├── data/          书架、书源、缓存、本地导入（Room / DataStore）
 ├── rule/          Legado 规则引擎：URL、JSONPath、XPath、JSoup、正则、Rhino、Cookie
 ├── source/        书源执行（搜索 / 详情 / 目录 / 正文）与段评加载
-│   └── fanqie/    番茄原生客户端（设备注册、签名、正文与段评）
+│   └── fanqie/    番茄协议实现（设备注册、签名、正文与段评）
 ├── ui/            Compose 界面（书架、搜索、发现、详情、阅读器、设置）
 └── web/           WebView 登录、验证码、JS Host
 ```
