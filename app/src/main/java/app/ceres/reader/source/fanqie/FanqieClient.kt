@@ -40,6 +40,12 @@ object FanqieClient {
     private const val KEY_TTL_MS = 7L * 24 * 3600 * 1000
     private const val COMMENT_PAGE_SIZE = 20
     private const val REPLY_PAGE_SIZE = 50
+    /** 番茄把章节标题放在 10000 这个特殊段落下标上。 */
+    private const val CHAPTER_TITLE_PARA_INDEX = 10000
+
+    /** 番茄正文里的章节标题块；标题单独由阅读器显示，正文中不要重复。 */
+    private val CHAPTER_TITLE_BLOCK =
+        Regex("(?is)<h1\\b[^>]*\\bchapterTitle\\b[^>]*>.*?</h1>")
 
     private val gson = GsonBuilder().disableHtmlEscaping().create()
     private val random = SecureRandom()
@@ -97,28 +103,34 @@ object FanqieClient {
         return text
     }
 
-    /** 章节正文（已解密、已解压）。 */
+    /** 章节正文（已解密、已解压，并去掉重复的章节标题块）。 */
     fun chapter(bookId: String, itemId: String): String {
         val d = device()
         // 必须先注册密钥：新设备在 registerkey 之前拉正文会拿到 crypt_status=2 的 "Invalid"。
         var key = ensureKey(d)
         var item = fetchChapterItem(d, bookId, itemId)
         return try {
-            decodeChapter(item, key)
+            stripChapterTitle(decodeChapter(item, key))
         } catch (first: Exception) {
             // 密钥过期/轮换时接口仍返回 crypt_status=0，只有解密会失败；重注册后重新拉取。
             invalidateKey()
             key = ensureKey(d)
             item = fetchChapterItem(d, bookId, itemId)
             try {
-                decodeChapter(item, key)
+                stripChapterTitle(decodeChapter(item, key))
             } catch (second: Exception) {
                 throw FanqieException("正文解密失败: ${second.message ?: first.message}")
             }
         }
     }
 
-    /** 段评统计，归一化成 `{"items":[{"paraIndex":1,"count":5605}]}`。 */
+    /**
+     * 番茄正文开头带一个 `<h1 class="chapterTitle…">` 标题块，而阅读器已经单独显示
+     * 目录里的章节名。留着会重复显示，也会让段评下标整体偏移；这里直接去掉。
+     */
+    private fun stripChapterTitle(html: String): String = html.replace(CHAPTER_TITLE_BLOCK, "")
+
+    /** 段评统计，归一化成 `{"items":[{"paraIndex":2,"count":5605}]}`。 */
     fun reviewSummary(bookId: String, itemId: String): String {
         val d = device()
         val q = commentQuery(d)
@@ -127,14 +139,18 @@ object FanqieClient {
         val data = root.getAsJsonObject("data")?.getAsJsonObject("data") ?: JsonObject()
         val rows = data.entrySet().mapNotNull { (k, v) ->
             val index = k.toIntOrNull() ?: return@mapNotNull null
-            if (index <= 0 || !v.isJsonObject) return@mapNotNull null
+            // 0 是整章汇总；10000 是章节标题（正文里已剥掉），都不能当正文段落。
+            if (index <= 0 || index == CHAPTER_TITLE_PARA_INDEX || !v.isJsonObject) {
+                return@mapNotNull null
+            }
             val count = v.asJsonObject.int("count")
             if (count <= 0) null else index to count
         }.sortedBy { it.first }
         val items = JsonArray()
         rows.forEach { (index, count) ->
             items.add(JsonObject().apply {
-                addProperty("paraIndex", index)
+                // 番茄正文段落按 0 开始编号，阅读器段落按 1 开始编号，且标题块已去掉。
+                addProperty("paraIndex", index + 1)
                 addProperty("count", count)
             })
         }
@@ -143,25 +159,7 @@ object FanqieClient {
 
     /** 某一段的评论列表。 */
     fun reviewDetail(bookId: String, itemId: String, paraIndex: Int, cursor: String): String {
-        val d = device()
-        val body = JsonObject().apply {
-            addProperty("chapter_id", itemId)
-            addProperty("comment_source", 2)
-            addProperty("comment_type", 1)
-            addProperty("group_type", 15)
-            addProperty("count", COMMENT_PAGE_SIZE)
-            addProperty("sort", 1)
-            addProperty("cursor", cursor)
-            add("business_param", JsonObject().apply {
-                addProperty("book_id", bookId)
-                addProperty("item_version", "0")
-                addProperty("para_index", paraIndex)
-            })
-        }
-        val root = signedCall(
-            d, "/novel/commentapi/comment/list/$itemId/v1/", commentQuery(d), gson.toJson(body),
-        )
-        checkCode(root, "段评列表")
+        val root = reviewPageRoot(bookId, itemId, paraIndex, cursor)
         val data = root.getAsJsonObject("data") ?: throw FanqieException("段评列表缺少 data")
         val items = JsonArray()
         data.getAsJsonArray("data_list")?.forEach { el ->
@@ -177,6 +175,35 @@ object FanqieClient {
             out.addProperty("next", FanqieUrls.reviewDetail(bookId, itemId, paraIndex, "c$nextCursor"))
         }
         return gson.toJson(out)
+    }
+
+    private fun reviewPageRoot(
+        bookId: String,
+        itemId: String,
+        paraIndex: Int,
+        cursor: String,
+    ): JsonObject {
+        val d = device()
+        val body = JsonObject().apply {
+            addProperty("chapter_id", itemId)
+            addProperty("comment_source", 2)
+            addProperty("comment_type", 1)
+            addProperty("group_type", 15)
+            addProperty("count", COMMENT_PAGE_SIZE)
+            addProperty("sort", 1)
+            addProperty("cursor", cursor)
+            add("business_param", JsonObject().apply {
+                addProperty("book_id", bookId)
+                addProperty("item_version", "0")
+                // 阅读器传进来的是 1-based 段落号；番茄正文段落是 0-based。
+                addProperty("para_index", (paraIndex - 1).coerceAtLeast(0))
+            })
+        }
+        val root = signedCall(
+            d, "/novel/commentapi/comment/list/$itemId/v1/", commentQuery(d), gson.toJson(body),
+        )
+        checkCode(root, "段评列表")
+        return root
     }
 
     /** 某条评论的回复。 */

@@ -98,12 +98,17 @@ class FanqieLiveTest {
         assertTrue("正文过短: ${text.length} 字", text.length > 200)
         assertFalse("正文里仍带 HTML 标签", text.contains("<p>"))
         assertFalse("正文疑似未解密", text.contains("crypt_status"))
+        assertTrue("正文首段疑似章节标题，标题块未剥掉: ${paragraphs.firstOrNull()}",
+            paragraphs.firstOrNull()?.startsWith("一个老旧的钨丝灯") == true)
 
         // 段评统计
         val summary = ReviewLoader.summary(source, book, chapter)
         println("段评统计 ${summary.counts.size} 段，共 ${summary.counts.values.sum()} 条")
         assertTrue("没有解析到段评统计", summary.counts.isNotEmpty())
-        assertTrue("段评下标应从 1 开始: ${summary.counts.keys.minOrNull()}", summary.counts.keys.all { it >= 1 })
+        assertTrue("段评下标应从 2 开始（第 1 段只有整章汇总）: ${summary.counts.keys.minOrNull()}",
+            summary.counts.keys.all { it >= 2 })
+        assertTrue("段评下标超出正文范围: ${summary.counts.keys.maxOrNull()} > ${paragraphs.size}",
+            summary.counts.keys.all { it <= paragraphs.size })
 
         // 段评列表：取评论最多的一段，顺带验证翻页
         val top = summary.counts.entries.maxByOrNull { it.value }!!
