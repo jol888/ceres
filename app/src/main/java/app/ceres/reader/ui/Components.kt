@@ -62,6 +62,7 @@ fun Screen(
             Text(
                 title,
                 style = MaterialTheme.typography.titleMedium,
+                color = p.ink,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -120,13 +121,28 @@ fun ListRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val p = LocalPalette.current
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = p.ink,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (!subtitle.isNullOrBlank()) {
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = p.gray,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
-        if (trailing != null) Text(trailing, style = MaterialTheme.typography.bodySmall)
+        if (trailing != null) {
+            Text(trailing, style = MaterialTheme.typography.bodySmall, color = p.gray)
+        }
     }
     RowDivider()
 }
@@ -184,9 +200,15 @@ fun Stepper(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Uni
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        val p = LocalPalette.current
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = p.ink)
         InkButton("－", onClick = onMinus)
-        Text(value, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(
+            value,
+            modifier = Modifier.width(64.dp),
+            color = p.ink,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
         InkButton("＋", onClick = onPlus)
     }
 }
@@ -200,10 +222,11 @@ fun SwitchRow(label: String, checked: Boolean, hint: String? = null, onChange: (
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val p = LocalPalette.current
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
-            if (hint != null) Text(hint, style = MaterialTheme.typography.bodySmall)
+            Text(label, style = MaterialTheme.typography.bodyLarge, color = p.ink)
+            if (hint != null) Text(hint, style = MaterialTheme.typography.bodySmall, color = p.gray)
         }
-        Text(if (checked) "■ 开" else "□ 关", fontWeight = FontWeight.Bold)
+        Text(if (checked) "■ 开" else "□ 关", fontWeight = FontWeight.Bold, color = p.ink)
     }
 }

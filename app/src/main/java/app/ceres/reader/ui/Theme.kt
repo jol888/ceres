@@ -5,7 +5,9 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -93,17 +95,6 @@ private fun colors(p: CeresPalette, invert: Boolean) = if (invert) {
     )
 }
 
-private val EinkTypography = Typography().run {
-    copy(
-        titleLarge = titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 22.sp),
-        titleMedium = titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 18.sp),
-        bodyLarge = bodyLarge.copy(fontSize = 17.sp),
-        bodyMedium = bodyMedium.copy(fontSize = 15.sp),
-        bodySmall = bodySmall.copy(fontSize = 13.sp),
-        labelLarge = labelLarge.copy(fontSize = 15.sp),
-    )
-}
-
 /** Indication that draws nothing: pressed states would cause extra e-ink refreshes. */
 private object NoIndication : IndicationNodeFactory {
     override fun create(interactionSource: InteractionSource): DelegatableNode = object : Modifier.Node() {}
@@ -111,16 +102,41 @@ private object NoIndication : IndicationNodeFactory {
     override fun hashCode() = 0
 }
 
+private fun typography(p: CeresPalette): Typography {
+    // Bake ink/gray into every style. Screen uses raw background() instead of Surface, so
+    // LocalContentColor would otherwise stay default black and break invert mode titles.
+    val base = Typography()
+    fun TextStyle.ink(size: androidx.compose.ui.unit.TextUnit, weight: FontWeight? = null) =
+        copy(fontSize = size, fontWeight = weight ?: fontWeight, color = p.ink)
+    return base.copy(
+        displayLarge = base.displayLarge.ink(57.sp),
+        displayMedium = base.displayMedium.ink(45.sp),
+        displaySmall = base.displaySmall.ink(36.sp),
+        headlineLarge = base.headlineLarge.ink(32.sp),
+        headlineMedium = base.headlineMedium.ink(28.sp),
+        headlineSmall = base.headlineSmall.ink(24.sp),
+        titleLarge = base.titleLarge.ink(22.sp, FontWeight.Bold),
+        titleMedium = base.titleMedium.ink(18.sp, FontWeight.Bold),
+        titleSmall = base.titleSmall.ink(14.sp, FontWeight.Bold),
+        bodyLarge = base.bodyLarge.ink(17.sp),
+        bodyMedium = base.bodyMedium.ink(15.sp),
+        bodySmall = base.bodySmall.copy(fontSize = 13.sp, color = p.gray),
+        labelLarge = base.labelLarge.ink(15.sp),
+        labelMedium = base.labelMedium.ink(12.sp),
+        labelSmall = base.labelSmall.ink(11.sp),
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CeresTheme(invert: Boolean = false, content: @Composable () -> Unit) {
     val p = palette(invert)
-    val typography = EinkTypography.copy(
-        bodySmall = EinkTypography.bodySmall.copy(fontSize = 13.sp, color = p.gray),
-    )
-    MaterialTheme(colorScheme = colors(p, invert), typography = typography) {
+    val type = typography(p)
+    MaterialTheme(colorScheme = colors(p, invert), typography = type) {
         CompositionLocalProvider(
             LocalPalette provides p,
+            LocalContentColor provides p.ink,
+            LocalTextStyle provides type.bodyLarge,
             LocalRippleConfiguration provides null,
             LocalIndication provides NoIndication,
             LocalOverscrollFactory provides null,

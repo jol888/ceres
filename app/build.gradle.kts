@@ -12,8 +12,8 @@ android {
         applicationId = "app.ceres.reader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.1.5"
+        versionCode = 7
+        versionName = "0.1.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "UPDATE_REPO", "\"jol888/ceres\"")
     }
