@@ -46,10 +46,25 @@ fun ShelfScreen(
         }
     }
 
+    val webDav by AppGraph.settings.webDav.collectAsState()
+    var syncing by remember { mutableStateOf(false) }
+
     Screen(title = "书架", actions = {
         Action("搜索", openSearch)
         Action("发现", openExplore)
         Action("导入") { picker.launch(arrayOf("text/plain", "application/epub+zip", "application/octet-stream")) }
+        if (webDav.enabled && webDav.url.isNotBlank()) {
+            Action(if (syncing) "同步中" else "同步") {
+                if (syncing) return@Action
+                syncing = true
+                scope.launch {
+                    runCatching { AppGraph.webDav.sync() }
+                        .onSuccess { Toast.makeText(context, it.message, Toast.LENGTH_SHORT).show() }
+                        .onFailure { Toast.makeText(context, "同步失败：${it.message}", Toast.LENGTH_LONG).show() }
+                    syncing = false
+                }
+            }
+        }
         Action("书源", openSources)
         Action("设置", openSettings)
     }) {
@@ -94,7 +109,12 @@ fun ShelfScreen(
                 }
                 add("清除已缓存正文" to { AppGraph.books.clearCache(book) })
             }
-            add("移出书架" to { scope.launch { AppGraph.books.delete(book) } })
+            add("移出书架" to {
+                scope.launch {
+                    AppGraph.webDav.noteRemoval(book.bookUrl)
+                    AppGraph.books.delete(book)
+                }
+            })
         }
         OptionsDialog(book.name, options) { menuFor = null }
     }

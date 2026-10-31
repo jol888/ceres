@@ -139,8 +139,8 @@ object FanqieClient {
         val data = root.getAsJsonObject("data")?.getAsJsonObject("data") ?: JsonObject()
         val rows = data.entrySet().mapNotNull { (k, v) ->
             val index = k.toIntOrNull() ?: return@mapNotNull null
-            // 0 是整章汇总；10000 是章节标题（正文里已剥掉），都不能当正文段落。
-            if (index <= 0 || index == CHAPTER_TITLE_PARA_INDEX || !v.isJsonObject) {
+            // 10000 是章节标题（正文里已剥掉）；0 是整章汇总，单独保留给第一段末尾展示。
+            if (index < 0 || index == CHAPTER_TITLE_PARA_INDEX || !v.isJsonObject) {
                 return@mapNotNull null
             }
             val count = v.asJsonObject.int("count")
@@ -149,8 +149,13 @@ object FanqieClient {
         val items = JsonArray()
         rows.forEach { (index, count) ->
             items.add(JsonObject().apply {
-                // 番茄正文段落按 0 开始编号，阅读器段落按 1 开始编号，且标题块已去掉。
-                addProperty("paraIndex", index + 1)
+                if (index == 0) {
+                    // 整章汇总：阅读器约定 paraIndex=0，角标画在第一段末尾。
+                    addProperty("paraIndex", 0)
+                } else {
+                    // 番茄正文段落按 0 开始编号，阅读器段落按 1 开始编号，且标题块已去掉。
+                    addProperty("paraIndex", index + 1)
+                }
                 addProperty("count", count)
             })
         }

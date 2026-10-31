@@ -145,7 +145,7 @@ fun SourcesScreen(onBack: () -> Unit, openDebug: (String) -> Unit, openLogin: (S
             },
             confirmButton = { TextButton(onClick = { showImport = false }) { Text("关闭") } },
             shape = RoundedCornerShape(4.dp),
-            containerColor = Paper,
+            containerColor = LocalPalette.current.paper,
         )
     }
 

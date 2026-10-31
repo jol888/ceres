@@ -49,7 +49,12 @@ class PageMetrics(
 private const val INDENT = "\u3000\u3000"
 
 /** Inline badge showing the comment count; drawn by StaticLayout itself. */
-private class BadgeSpan(private val text: String, private val paint: TextPaint, private val density: Float) : ReplacementSpan() {
+private class BadgeSpan(
+    private val text: String,
+    private val paint: TextPaint,
+    private val density: Float,
+    private val strokeColor: Int,
+) : ReplacementSpan() {
     private val padH = 5 * density
     private val gap = 4 * density
     val width: Int = (paint.measureText(text) + padH * 2 + gap).toInt()
@@ -64,7 +69,7 @@ private class BadgeSpan(private val text: String, private val paint: TextPaint, 
         val cy = y + (p.ascent() + p.descent()) / 2f
         val rect = RectF(x + gap, cy - h / 2, x + width, cy + h / 2)
         val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE; strokeWidth = 1.2f * density; color = Color.BLACK
+            style = Paint.Style.STROKE; strokeWidth = 1.2f * density; color = strokeColor
         }
         canvas.drawRoundRect(rect, 4 * density, 4 * density, stroke)
         val baseline = rect.centerY() - (paint.descent() + paint.ascent()) / 2
@@ -74,10 +79,13 @@ private class BadgeSpan(private val text: String, private val paint: TextPaint, 
 
 object Paginator {
 
+    private fun inkColor(s: ReaderSettings): Int =
+        if (s.invertColors) Color.WHITE else Color.BLACK
+
     fun metrics(spec: PageSpec, s: ReaderSettings): PageMetrics {
         val d = spec.density
         val infoPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK; textSize = 12 * d * spec.fontScale
+            color = inkColor(s); textSize = 12 * d * spec.fontScale
         }
         val padH = s.paddingHorizontalDp * d
         val padV = s.paddingVerticalDp * d
@@ -112,8 +120,9 @@ object Paginator {
     ): List<TextPage> {
         val d = spec.density
         val m = metrics(spec, s)
+        val ink = inkColor(s)
         val bodyPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
+            color = ink
             textSize = s.fontSizeSp * d * spec.fontScale
             typeface = if (s.boldText) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
@@ -122,7 +131,7 @@ object Paginator {
             typeface = Typeface.DEFAULT_BOLD
         }
         val badgePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK; textSize = bodyPaint.textSize * 0.6f; typeface = Typeface.DEFAULT_BOLD
+            color = ink; textSize = bodyPaint.textSize * 0.6f; typeface = Typeface.DEFAULT_BOLD
         }
         val width = m.contentWidth
         val paraGap = s.paragraphSpacingDp * d
@@ -136,18 +145,32 @@ object Paginator {
                 .setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE)
                 .build()
 
-        class Block(val layout: StaticLayout, val paraIndex: Int, val badgeWidth: Int)
+        class Block(
+            val layout: StaticLayout,
+            /** 0-based content paragraph index; -1 for title. */
+            val paraIndex: Int,
+            val badgeWidth: Int,
+            /** Review map key for the badge (0 = chapter total, else 1-based para). */
+            val badgeTarget: Int = 0,
+        )
 
+        val chapterTotal = reviewCounts[0] ?: 0
         val blocks = ArrayList<Block>(paragraphs.size + 1)
         blocks.add(Block(build(title, titlePaint, 1.2f), -1, 0))
         paragraphs.forEachIndexed { i, p ->
-            val count = reviewCounts[i + 1] ?: 0
+            val paraIndex = i + 1
+            // 章节汇总画在第一段末尾；该段若另有逐段计数则仍用汇总（番茄第一段通常无独立计数）。
+            val (count, badgeTarget) = if (i == 0 && chapterTotal > 0) {
+                chapterTotal to 0
+            } else {
+                (reviewCounts[paraIndex] ?: 0) to paraIndex
+            }
             if (count > 0) {
                 val label = if (count > 999) "999+" else count.toString()
-                val span = BadgeSpan(label, badgePaint, d)
+                val span = BadgeSpan(label, badgePaint, d, ink)
                 val text = SpannableString("$INDENT$p\uFFFC")
                 text.setSpan(span, text.length - 1, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                blocks.add(Block(build(text, bodyPaint, s.lineSpacing), i, span.width))
+                blocks.add(Block(build(text, bodyPaint, s.lineSpacing), i, span.width, badgeTarget))
             } else {
                 blocks.add(Block(build("$INDENT$p", bodyPaint, s.lineSpacing), i, 0))
             }
@@ -195,7 +218,7 @@ object Paginator {
                     val lineBottom = y + (layout.getLineBottom(last) - top)
                     badges.add(
                         BadgeHit(
-                            b.paraIndex + 1,
+                            b.badgeTarget,
                             RectF(
                                 m.paddingLeft + x, m.contentTop + lineTop,
                                 m.paddingLeft + x + b.badgeWidth, m.contentTop + lineBottom,
@@ -221,6 +244,7 @@ object Paginator {
         footerLeft: String,
         footerRight: String,
         width: Int,
+        clock: String? = null,
     ) {
         for (item in page.items) {
             val l = item.layout
@@ -233,7 +257,12 @@ object Paginator {
             canvas.restore()
         }
         val p = m.infoPaint
-        canvas.drawText(ellipsize(header, p, width - m.paddingLeft * 2), m.paddingLeft, m.headerBaseline, p)
+        val contentW = width - m.paddingLeft * 2
+        val clockW = clock?.let { p.measureText(it) + 12f } ?: 0f
+        canvas.drawText(ellipsize(header, p, contentW - clockW), m.paddingLeft, m.headerBaseline, p)
+        if (clock != null) {
+            canvas.drawText(clock, width - m.paddingLeft - p.measureText(clock), m.headerBaseline, p)
+        }
         canvas.drawText(ellipsize(footerLeft, p, width * 0.6f), m.paddingLeft, m.footerBaseline, p)
         val rw = p.measureText(footerRight)
         canvas.drawText(footerRight, width - m.paddingLeft - rw, m.footerBaseline, p)

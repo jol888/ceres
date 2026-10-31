@@ -23,9 +23,10 @@ import app.ceres.reader.AppGraph
 import app.ceres.reader.rule.StrResponse
 import app.ceres.reader.ui.Action
 import app.ceres.reader.ui.CeresTheme
-import app.ceres.reader.ui.Ink
+import app.ceres.reader.ui.LocalPalette
 import app.ceres.reader.ui.Screen
 import app.ceres.reader.util.parseStringMap
+import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.launch
 
 /**
@@ -63,10 +64,15 @@ class BrowserActivity : ComponentActivity() {
         wv.loadUrl(startUrl, headers.filterKeys { !it.equals("User-Agent", true) })
         onBackPressedDispatcher.addCallback(this) { if (wv.canGoBack()) wv.goBack() else done() }
         setContent {
-            CeresTheme {
+            val invert by AppGraph.settings.reader.collectAsState()
+            CeresTheme(invert = invert.invertColors) {
                 Screen(title = pageTitle, onBack = ::done, actions = { Action("完成", ::done) }) {
                     if (loadProgress in 1..99) {
-                        LinearProgressIndicator(progress = { loadProgress / 100f }, Modifier.fillMaxWidth(), color = Ink)
+                        LinearProgressIndicator(
+                            progress = { loadProgress / 100f },
+                            Modifier.fillMaxWidth(),
+                            color = LocalPalette.current.ink,
+                        )
                     }
                     AndroidView({ wv }, Modifier.fillMaxSize())
                 }

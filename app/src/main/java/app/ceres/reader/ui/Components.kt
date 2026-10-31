@@ -40,10 +40,11 @@ fun Screen(
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val p = LocalPalette.current
     Column(
         Modifier
             .fillMaxSize()
-            .background(Paper)
+            .background(p.paper)
             .safeDrawingPadding()
     ) {
         Row(
@@ -67,7 +68,7 @@ fun Screen(
             )
             actions()
         }
-        HorizontalDivider(color = Ink, thickness = 1.dp)
+        HorizontalDivider(color = p.ink, thickness = 1.dp)
         content()
     }
 }
@@ -81,12 +82,13 @@ fun Action(text: String, onClick: () -> Unit) {
 
 @Composable
 fun InkButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    val p = LocalPalette.current
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.heightIn(min = 40.dp),
         shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(1.dp, if (enabled) Ink else Gray),
+        border = BorderStroke(1.dp, if (enabled) p.ink else p.gray),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
     ) { Text(text, maxLines = 1) }
 }
@@ -99,7 +101,9 @@ fun CenterMessage(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun RowDivider() = HorizontalDivider(color = LightGray, thickness = 1.dp)
+fun RowDivider() {
+    HorizontalDivider(color = LocalPalette.current.lightGray, thickness = 1.dp)
+}
 
 @Composable
 fun ListRow(
@@ -154,7 +158,7 @@ fun OptionsDialog(title: String, options: List<Pair<String, () -> Unit>>, onDism
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } },
         shape = RoundedCornerShape(4.dp),
-        containerColor = Paper,
+        containerColor = LocalPalette.current.paper,
     )
 }
 
@@ -167,7 +171,7 @@ fun ConfirmDialog(title: String, text: String, confirm: String = "确定", onCon
         confirmButton = { TextButton(onClick = { onDismiss(); onConfirm() }) { Text(confirm, fontWeight = FontWeight.Bold) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
         shape = RoundedCornerShape(4.dp),
-        containerColor = Paper,
+        containerColor = LocalPalette.current.paper,
     )
 }
 

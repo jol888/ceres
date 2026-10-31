@@ -22,6 +22,9 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE inShelf = 1 ORDER BY durChapterTime DESC, addTime DESC")
     fun shelf(): Flow<List<Book>>
 
+    @Query("SELECT * FROM books WHERE inShelf = 1 ORDER BY durChapterTime DESC, addTime DESC")
+    suspend fun shelfList(): List<Book>
+
     @Query("SELECT * FROM books WHERE bookUrl = :url")
     suspend fun get(url: String): Book?
 

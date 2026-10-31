@@ -9,11 +9,15 @@ import app.ceres.reader.data.LocalImporter
 import app.ceres.reader.data.Settings
 import app.ceres.reader.data.SourceRepository
 import app.ceres.reader.data.model.KvEntry
+import app.ceres.reader.data.webdav.WebDavSync
 import app.ceres.reader.rule.KeyValueStore
 import app.ceres.reader.rule.Kv
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
 
 /** Minimal service locator. */
@@ -30,8 +34,11 @@ object AppGraph {
         private set
     lateinit var importer: LocalImporter
         private set
+    lateinit var webDav: WebDavSync
+        private set
 
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var progressSyncJob: Job? = null
 
     fun init(context: Context) {
         db = AppDatabase.create(context)
@@ -41,6 +48,18 @@ object AppGraph {
         books = BookRepository(db, sources, File(context.filesDir, "books"))
         cache = CacheManager(appScope, books)
         importer = LocalImporter(context.applicationContext, books, db)
+        webDav = WebDavSync(books, settings)
+    }
+
+    /** Debounce WebDAV progress upload after reading. */
+    fun scheduleProgressSync(delayMs: Long = 2_500) {
+        if (!webDav.configured()) return
+        if (!settings.webDav.value.autoSync) return
+        progressSyncJob?.cancel()
+        progressSyncJob = appScope.launch {
+            delay(delayMs)
+            runCatching { webDav.pushProgressIfNeeded() }
+        }
     }
 }
 

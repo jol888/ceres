@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import app.ceres.reader.AppGraph
 import app.ceres.reader.ui.CeresTheme
 import app.ceres.reader.ui.InkButton
 import app.ceres.reader.ui.Screen
@@ -43,7 +45,8 @@ class CaptchaActivity : ComponentActivity() {
         val imageUrl = intent.getStringExtra(EXTRA_URL).orEmpty()
         val bitmap = intent.getByteArrayExtra(EXTRA_IMAGE)?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
         setContent {
-            CeresTheme {
+            val invert by AppGraph.settings.reader.collectAsState()
+            CeresTheme(invert = invert.invertColors) {
                 var code by remember { mutableStateOf("") }
                 Screen(title = "输入验证码", onBack = { finish() }) {
                     Column(

@@ -53,7 +53,8 @@ object ReviewLoader {
             val indexValue = safe { ar.getString(rule.summaryParagraphIndexRule) }
             val paraIndex = parseInt(indexValue) ?: (i + 1)
             val count = parseInt(safe { ar.getString(rule.summaryCountRule) }) ?: 0
-            if (paraIndex != 0 && count > 0) {
+            // paraIndex 0 = 章节段评汇总（显示在第一段末尾）；>0 = 普通段落。
+            if (paraIndex >= 0 && count > 0) {
                 counts[paraIndex] = count
                 keys[paraIndex] = rule.summaryParagraphDataRule?.takeIf { it.isNotBlank() }
                     ?.let { safe { ar.getString(it) } }?.takeIf { it.isNotBlank() }

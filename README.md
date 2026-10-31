@@ -18,8 +18,10 @@
 - **书源**：导入 Legado 格式书源 JSON（文件、剪贴板、网络地址），支持 `legado://import/bookSource` 与 `yuedu://booksource` 链接导入。
 - **规则引擎**：JSONPath、XPath、JSoup、正则、Rhino JavaScript；支持 URL 模板与 `@js:`、POST、自定义请求头、Cookie、`{{}}` 变量、`@put` 变量。
 - **网页能力**：内置 WebView 登录、验证码输入、`webView:true` 页面抓取与 Cookie 同步。
-- **阅读**：分页排版、目录跳转、进度保存、章节预加载、音量键翻页、单手模式、墨水屏全局刷新。
-- **段评**：按段落显示评论数，支持评论列表分页与回复（书源配置 `ruleReview` 时）。
+- **阅读**：分页排版、目录跳转、进度保存、章节预加载、音量键翻页、单手模式、墨水屏全局刷新、反色模式、页眉时间。
+- **段评**：按段落显示评论数，章节汇总显示在第一段末尾；支持评论列表分页与回复（书源配置 `ruleReview` 时）。
+- **更新**：设置页检查 GitHub Releases；推送 / 打 tag 自动构建 APK。
+- **WebDAV**：书架与阅读进度云同步（坚果云等），支持双向合并、仅上传 / 仅下载与自动同步。
 - **本地书籍**：导入 TXT / EPUB，支持编码探测与 EPUB 目录解析。
 - **其他**：书架、发现页、书源调试、离线缓存。
 
@@ -56,6 +58,27 @@ CERES_LIVE=1 CERES_FANQIE_SOURCE=/path/to/fanqie_novel_source.json \
 ```
 
 联调用例默认跳过；找不到书源文件时也会跳过。它会依次检查 `CERES_FANQIE_SOURCE`、仓库根目录和相邻的 `fanqie-legado-source` 目录。
+
+## CI 与自动构建
+
+GitHub Actions：
+
+- **CI**（`.github/workflows/ci.yml`）：单元测试、`assembleDebug`，以及**严格版本递进**校验。
+- **Build APK**（`.github/workflows/build.yml`）：推送到 `master` 时构建 release APK 并上传 Artifact；推送 `v*` tag 时自动创建 GitHub Release 并附带 `ceres-<version>.apk`。
+
+版本递进规则：
+
+1. `app/build.gradle.kts` 里的 `versionCode` 必须是正整数，且相对基准 **严格更大**。
+2. `versionName` 必须是点分版本号，且相对基准按 `sort -V` **严格更大**（例如 `0.1.1` → `0.1.2`）。
+3. 两个字段都要通过；只改其一会失败。
+
+本地自检：
+
+```bash
+./scripts/check-version-progression.sh origin/master
+```
+
+应用内设置页「检查更新」会请求 GitHub Releases 最新版；发版后可用 tag 触发自动构建。
 
 ## 目录结构
 

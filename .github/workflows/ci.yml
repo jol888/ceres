@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    name: Version progression
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Strict version progression
+        run: |
+          set -euo pipefail
+          echo "::notice title=CI 提示::有代码变更时，versionCode 与 versionName 都必须严格递增。本地：./scripts/check-version-progression.sh origin/master"
+          chmod +x scripts/check-version-progression.sh
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch origin "${{ github.base_ref }}" --depth=1
+            BASE_REF="origin/${{ github.base_ref }}"
+          else
+            if ! git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+              echo "::notice title=版本递进::首次提交，跳过递进校验。"
+              exit 0
+            fi
+            BASE_REF="HEAD~1"
+          fi
+          ./scripts/check-version-progression.sh "$BASE_REF"
+
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Grant gradlew
+        run: chmod +x gradlew
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Assemble debug
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace

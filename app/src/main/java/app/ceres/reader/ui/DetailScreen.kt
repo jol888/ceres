@@ -65,6 +65,7 @@ class DetailViewModel(private val bookUrl: String) : ViewModel() {
         val book = state.value.book ?: return
         val updated = book.copy(inShelf = !book.inShelf)
         viewModelScope.launch {
+            if (!updated.inShelf) AppGraph.webDav.noteRemoval(book.bookUrl)
             AppGraph.books.save(updated)
             state.update { it.copy(book = updated) }
         }

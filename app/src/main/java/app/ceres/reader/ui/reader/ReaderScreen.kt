@@ -57,16 +57,21 @@ import app.ceres.reader.AppGraph
 import app.ceres.reader.MainActivity
 import app.ceres.reader.source.ReviewItem
 import app.ceres.reader.ui.Action
-import app.ceres.reader.ui.Gray
-import app.ceres.reader.ui.Ink
+import app.ceres.reader.ui.FlashBlack
 import app.ceres.reader.ui.InkButton
-import app.ceres.reader.ui.Paper
+import app.ceres.reader.ui.LocalPalette
 import app.ceres.reader.ui.RowDivider
 import app.ceres.reader.ui.Stepper
 import app.ceres.reader.ui.SwitchRow
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private enum class Panel { None, Toc, Style }
+
+private fun nowClock(): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
 @Composable
 fun ReaderScreen(bookUrl: String, startIndex: Int?, onBack: () -> Unit) {
@@ -77,8 +82,18 @@ fun ReaderScreen(bookUrl: String, startIndex: Int?, onBack: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf(Panel.None) }
     var flash by remember { mutableStateOf(false) }
+    var clock by remember { mutableStateOf(nowClock()) }
     val activity = LocalActivity.current as? MainActivity
     val view = LocalView.current
+
+    LaunchedEffect(settings.showClock) {
+        if (!settings.showClock) return@LaunchedEffect
+        while (true) {
+            clock = nowClock()
+            val delayMs = 60_000L - (System.currentTimeMillis() % 60_000L)
+            delay(delayMs.coerceAtLeast(1_000L))
+        }
+    }
 
     DisposableEffect(settings.keepScreenOn) {
         val window = activity?.window
@@ -132,10 +147,11 @@ fun ReaderScreen(bookUrl: String, startIndex: Int?, onBack: () -> Unit) {
         }
     }
 
+    val palette = LocalPalette.current
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .background(Paper)
+            .background(palette.paper)
     ) {
         val density = LocalDensity.current
         val w = constraints.maxWidth
@@ -150,6 +166,7 @@ fun ReaderScreen(bookUrl: String, startIndex: Int?, onBack: () -> Unit) {
         val touchSlop = with(density) { 12.dp.toPx() }
         val swipeMin = with(density) { 60.dp.toPx() }
 
+        val clockLabel = if (settings.showClock) clock else null
         Canvas(
             Modifier
                 .fillMaxSize()
@@ -188,6 +205,7 @@ fun ReaderScreen(bookUrl: String, startIndex: Int?, onBack: () -> Unit) {
                         footerLeft = ui.bookName,
                         footerRight = "${ui.pageIndex + 1}/${ui.pages.size}　${ui.chapterIndex + 1}/${ui.chapterCount}章",
                         width = w,
+                        clock = clockLabel,
                     )
                 }
             }
@@ -198,7 +216,7 @@ fun ReaderScreen(bookUrl: String, startIndex: Int?, onBack: () -> Unit) {
                 Modifier
                     .align(Alignment.Center)
                     .padding(24.dp)
-                    .background(Paper),
+                    .background(LocalPalette.current.paper),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -241,7 +259,7 @@ fun ReaderScreen(bookUrl: String, startIndex: Int?, onBack: () -> Unit) {
         if (flash) Box(
             Modifier
                 .fillMaxSize()
-                .background(Ink)
+                .background(FlashBlack)
         )
     }
 }
@@ -263,7 +281,7 @@ private fun ReaderMenu(
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(Paper)
+                .background(LocalPalette.current.paper)
         ) {
             Row(Modifier.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Action("‹ 返回", onBack)
@@ -274,7 +292,7 @@ private fun ReaderMenu(
                 if (!ui.inShelf) Action("加书架") { vm.addToShelf() }
                 Action("重新获取") { vm.reloadChapter(); onClose() }
             }
-            HorizontalDivider(color = Ink)
+            HorizontalDivider(color = LocalPalette.current.ink)
         }
         Spacer(
             Modifier
@@ -285,9 +303,9 @@ private fun ReaderMenu(
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(Paper)
+                .background(LocalPalette.current.paper)
         ) {
-            HorizontalDivider(color = Ink)
+            HorizontalDivider(color = LocalPalette.current.ink)
             Text(
                 "${ui.chapterTitle}　（${ui.chapterIndex + 1}/${ui.chapterCount}）",
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -314,7 +332,7 @@ private fun TocPanel(vm: ReaderViewModel, current: Int, onClose: () -> Unit, onP
     Column(
         Modifier
             .fillMaxSize()
-            .background(Paper)
+            .background(LocalPalette.current.paper)
             .safeDrawingPadding()
     ) {
         Row(Modifier.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -322,13 +340,13 @@ private fun TocPanel(vm: ReaderViewModel, current: Int, onClose: () -> Unit, onP
             Text("目录（${vm.chapters.size} 章）", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             Action("刷新") { vm.refreshToc() }
         }
-        HorizontalDivider(color = Ink)
+        HorizontalDivider(color = LocalPalette.current.ink)
         LazyColumn(Modifier.fillMaxSize(), state = listState) {
             itemsIndexed(vm.chapters, key = { _, c -> c.index }) { i, c ->
                 Text(
                     (if (i == current) "▶ " else "") + c.title,
                     fontWeight = if (i == current) FontWeight.Bold else FontWeight.Normal,
-                    color = if (c.isVolume) Gray else Ink,
+                    color = if (c.isVolume) LocalPalette.current.gray else LocalPalette.current.ink,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
@@ -356,10 +374,10 @@ private fun StylePanel(onClose: () -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(Paper)
+                .background(LocalPalette.current.paper)
                 .safeDrawingPadding()
         ) {
-            HorizontalDivider(color = Ink)
+            HorizontalDivider(color = LocalPalette.current.ink)
             Column(
                 Modifier
                     .heightIn(max = 460.dp)
@@ -386,6 +404,8 @@ private fun StylePanel(onClose: () -> Unit) {
                     { update { it.copy(refreshEvery = (it.refreshEvery + 1).coerceAtMost(50)) } })
                 SwitchRow("粗体正文", s.boldText) { v -> update { it.copy(boldText = v) } }
                 SwitchRow("显示段评", s.showReviews) { v -> update { it.copy(showReviews = v) } }
+                SwitchRow("显示时间", s.showClock, "页眉右侧") { v -> update { it.copy(showClock = v) } }
+                SwitchRow("反色模式", s.invertColors, "黑底白字") { v -> update { it.copy(invertColors = v) } }
                 InkButton("完成", Modifier.fillMaxWidth(), onClick = onClose)
             }
         }
@@ -405,26 +425,29 @@ private fun ReviewSheet(state: ReviewSheetState, onClose: () -> Unit, onMore: ()
             Modifier
                 .weight(0.7f)
                 .fillMaxWidth()
-                .background(Paper)
+                .background(LocalPalette.current.paper)
                 .safeDrawingPadding()
         ) {
-            HorizontalDivider(color = Ink, thickness = 2.dp)
+            HorizontalDivider(color = LocalPalette.current.ink, thickness = 2.dp)
             Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "第 ${state.paraIndex} 段 · ${state.count} 条段评",
+                    if (state.paraIndex == 0) "整章 · ${state.count} 条段评"
+                    else "第 ${state.paraIndex} 段 · ${state.count} 条段评",
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
                 Action("关闭", onClose)
             }
-            Text(
-                "「${state.paraText}」",
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-            HorizontalDivider(color = Ink, modifier = Modifier.padding(top = 8.dp))
+            if (state.paraIndex != 0) {
+                Text(
+                    "「${state.paraText}」",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+            HorizontalDivider(color = LocalPalette.current.ink, modifier = Modifier.padding(top = 8.dp))
             LazyColumn(
                 Modifier
                     .fillMaxWidth()

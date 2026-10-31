@@ -189,7 +189,10 @@ class ReaderViewModel(private val bookUrl: String, private val startIndex: Int?)
         val u = ui.value
         val page = u.pages.getOrNull(u.pageIndex) ?: return
         val title = chapters.getOrNull(u.chapterIndex)?.title
-        viewModelScope.launch { books.saveProgress(b, u.chapterIndex, page.startPos, title) }
+        viewModelScope.launch {
+            books.saveProgress(b, u.chapterIndex, page.startPos, title)
+            AppGraph.scheduleProgressSync()
+        }
     }
 
     private fun tick() = ui.update { it.copy(turnTick = it.turnTick + 1) }
@@ -264,7 +267,9 @@ class ReaderViewModel(private val bookUrl: String, private val startIndex: Int?)
     fun openReview(paraIndex: Int) {
         val cur = current ?: return
         val count = cur.summary.counts[paraIndex] ?: return
-        review.value = ReviewSheetState(paraIndex, cur.paragraphs.getOrNull(paraIndex - 1).orEmpty(), count)
+        val paraText = if (paraIndex == 0) "整章段评"
+        else cur.paragraphs.getOrNull(paraIndex - 1).orEmpty()
+        review.value = ReviewSheetState(paraIndex, paraText, count)
         loadReviews(reset = true)
     }
 

@@ -10,9 +10,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.view.WindowCompat
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,6 +27,7 @@ import app.ceres.reader.ui.DetailScreen
 import app.ceres.reader.ui.ExploreScreen
 import app.ceres.reader.ui.ImportLinkDialog
 import app.ceres.reader.util.ImportLink
+import app.ceres.reader.ui.LocalPalette
 import app.ceres.reader.ui.SearchScreen
 import app.ceres.reader.ui.SettingsScreen
 import app.ceres.reader.ui.ShelfScreen
@@ -63,7 +68,19 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) handleLink(intent)
         setContent {
-            CeresTheme {
+            val settings by AppGraph.settings.reader.collectAsState()
+            CeresTheme(invert = settings.invertColors) {
+                val palette = LocalPalette.current
+                SideEffect {
+                    val window = window
+                    val paper = palette.paper.toArgb()
+                    window.statusBarColor = paper
+                    window.navigationBarColor = paper
+                    WindowCompat.getInsetsController(window, window.decorView).apply {
+                        isAppearanceLightStatusBars = !settings.invertColors
+                        isAppearanceLightNavigationBars = !settings.invertColors
+                    }
+                }
                 importLink?.let { link ->
                     ImportLinkDialog(link) { importLink = null }
                 }

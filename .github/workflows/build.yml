@@ -1,0 +1,83 @@
+name: Build APK
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Assemble & publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Grant gradlew
+        run: chmod +x gradlew
+
+      - name: Read version
+        id: ver
+        run: |
+          set -euo pipefail
+          CODE=$(grep -E '^[[:space:]]*versionCode[[:space:]]*=' app/build.gradle.kts | head -n1 | sed -E 's/.*=[[:space:]]*//;s/[[:space:]]*$//')
+          NAME=$(grep -E '^[[:space:]]*versionName[[:space:]]*=' app/build.gradle.kts | head -n1 | sed -E 's/.*=[[:space:]]*//;s/[\"'\'']//g;s/[[:space:]]*$//')
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "::notice title=构建::Ceres ${NAME} (${CODE})"
+
+      - name: Assemble release APK
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Package APK
+        id: apk
+        run: |
+          set -euo pipefail
+          SRC="app/build/outputs/apk/release/app-release.apk"
+          test -f "$SRC"
+          NAME="ceres-${{ steps.ver.outputs.name }}.apk"
+          cp "$SRC" "$NAME"
+          echo "file=$NAME" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$NAME" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          ls -lh "$NAME"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.file }}
+          path: ${{ steps.apk.outputs.file }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk.outputs.file }}
+          name: Ceres v${{ steps.ver.outputs.name }}
+          body: |
+            自动构建自 `${{ github.sha }}`。
+
+            - 版本：`${{ steps.ver.outputs.name }}`（versionCode ${{ steps.ver.outputs.code }}）
+            - 资产：`${{ steps.apk.outputs.file }}`
+            - SHA-256：`${{ steps.apk.outputs.sha256 }}`
+            - Android 8.0+（minSdk 26），debug 签名的 release 包
+
+            安装后可在设置页「检查更新」拉取最新 Release。
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

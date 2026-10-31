@@ -26,6 +26,7 @@ class BookRepository(
     private val chapterDao = db.chapterDao()
 
     fun shelf(): Flow<List<Book>> = bookDao.shelf()
+    suspend fun shelfList(): List<Book> = bookDao.shelfList()
     fun observe(url: String): Flow<Book?> = bookDao.observe(url)
     suspend fun get(url: String): Book? = bookDao.get(url)
     suspend fun save(book: Book) = bookDao.upsert(book)
