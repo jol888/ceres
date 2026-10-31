@@ -12,16 +12,26 @@ android {
         applicationId = "app.ceres.reader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.1.4"
+        versionCode = 6
+        versionName = "0.1.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "UPDATE_REPO", "\"jol888/ceres\"")
+    }
+
+    // Stable key shared by CI and local release builds (see keystore/README.md).
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file("keystore/ceres-release.jks")
+            storePassword = "ceres-release"
+            keyAlias = "ceres"
+            keyPassword = "ceres-release"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

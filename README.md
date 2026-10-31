@@ -64,7 +64,7 @@ CERES_LIVE=1 CERES_FANQIE_SOURCE=/path/to/fanqie_novel_source.json \
 GitHub Actions：
 
 - **CI**（`.github/workflows/ci.yml`）：单元测试、`assembleDebug`，以及**严格版本递进**校验。
-- **Build APK**（`.github/workflows/build.yml`）：推送到 `master` 时构建 release APK 并上传 Artifact；推送 `v*` tag 时自动创建 GitHub Release 并附带 `ceres-<version>.apk`。
+- **Build APK**（`.github/workflows/build.yml`）：推送到 `master` 时构建 release APK 并上传 Artifact；推送 `v*` tag 时自动创建 GitHub Release 并附带 `ceres-<version>.apk`。APK 使用仓库内固定 `keystore/ceres-release.jks` 签名，避免 CI / 本机 debug 证书不一致导致无法覆盖安装。
 
 版本递进规则：
 

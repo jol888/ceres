@@ -75,7 +75,9 @@ jobs:
             - 版本：`${{ steps.ver.outputs.name }}`（versionCode ${{ steps.ver.outputs.code }}）
             - 资产：`${{ steps.apk.outputs.file }}`
             - SHA-256：`${{ steps.apk.outputs.sha256 }}`
-            - Android 8.0+（minSdk 26），debug 签名的 release 包
+            - Android 8.0+（minSdk 26），使用仓库内固定 `ceres-release` 签名
+
+            若从旧版 debug 签名包升级提示「与现有软件包冲突」，请先卸载旧版再安装一次；之后可直接覆盖更新。
 
             安装后可在设置页「检查更新」拉取最新 Release。
           fail_on_unmatched_files: true
