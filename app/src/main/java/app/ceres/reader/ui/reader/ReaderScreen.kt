@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +39,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,6 +67,7 @@ import app.ceres.reader.ui.RowDivider
 import app.ceres.reader.ui.Stepper
 import app.ceres.reader.ui.SwitchRow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -85,6 +89,14 @@ fun ReaderScreen(bookUrl: String, startIndex: Int?, onBack: () -> Unit) {
     var clock by remember { mutableStateOf(nowClock()) }
     val activity = LocalActivity.current as? MainActivity
     val view = LocalView.current
+    val scope = rememberCoroutineScope()
+    val reviewListState = rememberLazyListState()
+    val reviewState by rememberUpdatedState(review)
+
+    LaunchedEffect(review != null, review?.paraIndex) {
+        // Instant jump — never animate when (re)opening a paragraph's comments.
+        if (review != null) reviewListState.scrollToItem(0)
+    }
 
     LaunchedEffect(settings.showClock) {
         if (!settings.showClock) return@LaunchedEffect
@@ -119,6 +131,27 @@ fun ReaderScreen(bookUrl: String, startIndex: Int?, onBack: () -> Unit) {
                 KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_DOWN -> true
                 KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_UP -> false
                 else -> return@handler false
+            }
+            val sheet = reviewState
+            if (sheet != null) {
+                // Page the comment list with an instant jump (no fling / animateScroll*).
+                if (e.action == KeyEvent.ACTION_DOWN) {
+                    scope.launch {
+                        val info = reviewListState.layoutInfo
+                        val viewport = (info.viewportEndOffset - info.viewportStartOffset).toFloat()
+                        if (viewport <= 0f) return@launch
+                        val delta = if (forward) viewport else -viewport
+                        reviewListState.scrollBy(delta)
+                        if (forward &&
+                            !reviewListState.canScrollForward &&
+                            sheet.nextUrl != null &&
+                            !sheet.loading
+                        ) {
+                            vm.loadReviews()
+                        }
+                    }
+                }
+                return@handler true
             }
             if (overlayOpen) return@handler false
             if (e.action == KeyEvent.ACTION_DOWN) {
@@ -254,7 +287,14 @@ fun ReaderScreen(bookUrl: String, startIndex: Int?, onBack: () -> Unit) {
             Panel.Style -> StylePanel(onClose = { panel = Panel.None })
             Panel.None -> Unit
         }
-        review?.let { ReviewSheet(it, onClose = vm::closeReview, onMore = { vm.loadReviews() }) }
+        review?.let {
+            ReviewSheet(
+                state = it,
+                listState = reviewListState,
+                onClose = vm::closeReview,
+                onMore = { vm.loadReviews() },
+            )
+        }
 
         if (flash) Box(
             Modifier
@@ -413,7 +453,12 @@ private fun StylePanel(onClose: () -> Unit) {
 }
 
 @Composable
-private fun ReviewSheet(state: ReviewSheetState, onClose: () -> Unit, onMore: () -> Unit) {
+private fun ReviewSheet(
+    state: ReviewSheetState,
+    listState: LazyListState,
+    onClose: () -> Unit,
+    onMore: () -> Unit,
+) {
     Column(Modifier.fillMaxSize()) {
         Spacer(
             Modifier
@@ -451,7 +496,8 @@ private fun ReviewSheet(state: ReviewSheetState, onClose: () -> Unit, onMore: ()
             LazyColumn(
                 Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight()
+                    .fillMaxHeight(),
+                state = listState,
             ) {
                 itemsIndexed(state.items) { _, item -> ReviewRow(item) }
                 item {
