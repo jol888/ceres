@@ -91,6 +91,7 @@ class ReaderViewModel(private val bookUrl: String, private val startIndex: Int?)
             val index = (startIndex ?: b.durChapterIndex).coerceIn(0, list.lastIndex)
             val target = if (startIndex == null || startIndex == b.durChapterIndex) Target.Pos(b.durChapterPos) else Target.Start
             open(index, target)
+            followSyncedProgress(b)
         }
         viewModelScope.launch {
             AppGraph.settings.reader.drop(1).collect { s ->
@@ -184,10 +185,30 @@ class ReaderViewModel(private val bookUrl: String, private val startIndex: Int?)
         saveProgress()
     }
 
+    /**
+     * Jumps to progress that a WebDAV sync pulled in from another device. Only strictly newer
+     * timestamps count; our own [saveProgress] writes always carry [Book.durChapterTime] of [b].
+     */
+    private suspend fun followSyncedProgress(b: Book) {
+        books.observe(bookUrl).collect { latest ->
+            if (latest == null || latest.durChapterTime <= b.durChapterTime || chapters.isEmpty()) return@collect
+            b.durChapterIndex = latest.durChapterIndex
+            b.durChapterPos = latest.durChapterPos
+            b.durChapterTitle = latest.durChapterTitle
+            b.durChapterTime = latest.durChapterTime
+            open(latest.durChapterIndex.coerceIn(0, chapters.lastIndex), Target.Pos(latest.durChapterPos))
+        }
+    }
+
     private fun saveProgress() {
         val b = book ?: return
         val u = ui.value
         val page = u.pages.getOrNull(u.pageIndex) ?: return
+        // Re-layouts (opening the book, system bars toggling with the menu, settings changes) land on
+        // the page that already holds the saved position; re-stamping it would make stale progress
+        // look newer than what other devices synced.
+        val nextStart = u.pages.getOrNull(u.pageIndex + 1)?.startPos ?: Int.MAX_VALUE
+        if (u.chapterIndex == b.durChapterIndex && b.durChapterPos >= page.startPos && b.durChapterPos < nextStart) return
         val title = chapters.getOrNull(u.chapterIndex)?.title
         viewModelScope.launch {
             books.saveProgress(b, u.chapterIndex, page.startPos, title)

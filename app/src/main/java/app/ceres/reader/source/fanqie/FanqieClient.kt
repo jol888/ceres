@@ -286,6 +286,26 @@ object FanqieClient {
     // 设备身份 / 正文密钥
     // ------------------------------------------------------------------
 
+    /** 当前设备号；尚未注册时返回 null，不会触发注册。 */
+    fun currentDeviceId(): String? {
+        deviceCache?.let { return it.deviceId }
+        val raw = Kv.get(DEVICE_KEY) ?: return null
+        return runCatching { deviceFromJson(parseObject(raw)) }.getOrNull()?.deviceId
+    }
+
+    /** 丢弃旧设备身份和正文密钥，重新注册并换取密钥，返回新设备号。 */
+    fun reRegisterDevice(): String {
+        val d = synchronized(lock) {
+            val fresh = registerDevice()
+            Kv.put(DEVICE_KEY, gson.toJson(deviceToJson(fresh)))
+            invalidateKey()
+            deviceCache = fresh
+            fresh
+        }
+        ensureKey(d)
+        return d.deviceId
+    }
+
     private fun device(): FanqieDevice {
         deviceCache?.let { return it }
         synchronized(lock) {

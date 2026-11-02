@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,10 +34,13 @@ import app.ceres.reader.BuildConfig
 import app.ceres.reader.data.AppRelease
 import app.ceres.reader.data.AppUpdate
 import app.ceres.reader.data.UpdateCheck
+import app.ceres.reader.source.fanqie.FanqieClient
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
@@ -50,6 +54,12 @@ fun SettingsScreen(onBack: () -> Unit) {
     var syncing by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
     var updateDialog by remember { mutableStateOf<AppRelease?>(null) }
+    var registering by remember { mutableStateOf(false) }
+    var fanqieDevice by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        fanqieDevice = withContext(Dispatchers.IO) { runCatching { FanqieClient.currentDeviceId() }.getOrNull() }
+    }
 
     Screen(title = "设置", onBack = onBack) {
         Column(
@@ -131,6 +141,37 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
             RowDivider()
 
+            Text("番茄小说", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+            Text(
+                "设备号：${fanqieDevice ?: "未注册"}",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+            InkButton(
+                if (registering) "注册中…" else "重新注册设备",
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                enabled = !registering,
+            ) {
+                registering = true
+                scope.launch {
+                    runCatching { withContext(Dispatchers.IO) { FanqieClient.reRegisterDevice() } }
+                        .onSuccess {
+                            fanqieDevice = it
+                            Toast.makeText(context, "已重新注册设备\n$it", Toast.LENGTH_SHORT).show()
+                        }
+                        .onFailure { Toast.makeText(context, "注册失败：${it.message}", Toast.LENGTH_LONG).show() }
+                    registering = false
+                }
+            }
+            Text(
+                "番茄正文、段评报错（风控、解密失败、返回空响应）时，可换一个新设备身份重试。",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            RowDivider()
+
             Text("WebDAV 云同步", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
             Text(
                 "同步书架与阅读进度到 WebDAV（坚果云等）。文件路径：ceres/bookshelf.json",
@@ -173,7 +214,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             SwitchRow(
                 "自动同步",
                 dav.autoSync,
-                "阅读进度变化或移出书架后自动双向同步",
+                "打开应用、阅读进度变化或移出书架后自动双向同步",
             ) { v -> updateDav { it.copy(autoSync = v) } }
             if (dav.lastSyncAt > 0) {
                 Text(

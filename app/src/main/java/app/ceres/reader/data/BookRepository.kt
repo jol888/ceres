@@ -29,8 +29,20 @@ class BookRepository(
     suspend fun shelfList(): List<Book> = bookDao.shelfList()
     fun observe(url: String): Flow<Book?> = bookDao.observe(url)
     suspend fun get(url: String): Book? = bookDao.get(url)
-    suspend fun save(book: Book) = bookDao.upsert(book)
+    suspend fun save(book: Book) = bookDao.upsert(keepNewerProgress(book))
     suspend fun chapters(bookUrl: String): List<BookChapter> = chapterDao.list(bookUrl)
+
+    /** Whole-row writes must not roll back progress saved (or synced in) after [book] was loaded. */
+    private suspend fun keepNewerProgress(book: Book): Book {
+        val stored = bookDao.get(book.bookUrl) ?: return book
+        if (stored.durChapterTime <= book.durChapterTime) return book
+        return book.copy(
+            durChapterIndex = stored.durChapterIndex,
+            durChapterPos = stored.durChapterPos,
+            durChapterTitle = stored.durChapterTitle,
+            durChapterTime = stored.durChapterTime,
+        )
+    }
 
     suspend fun saveProgress(book: Book, index: Int, pos: Int, title: String?) {
         book.durChapterIndex = index
@@ -57,7 +69,7 @@ class BookRepository(
             val body = if (infoToo || book.tocUrl.isBlank()) WebBook.getBookInfo(src, book) else null
             WebBook.getChapterList(src, book, body)
         }
-        bookDao.upsert(book)
+        bookDao.upsert(keepNewerProgress(book))
         chapterDao.replace(book.bookUrl, chapters)
         return chapters
     }

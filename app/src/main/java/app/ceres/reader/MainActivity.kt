@@ -48,6 +48,12 @@ class MainActivity : ComponentActivity() {
 
     private var importLink by mutableStateOf<ImportLink?>(null)
 
+    override fun onStart() {
+        super.onStart()
+        // Pull progress read on other devices as soon as the app comes back (auto sync only).
+        AppGraph.scheduleProgressSync(delayMs = 0)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleLink(intent)
