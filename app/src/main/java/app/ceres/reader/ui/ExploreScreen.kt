@@ -27,6 +27,7 @@ import app.ceres.reader.data.model.BookSource
 import app.ceres.reader.data.model.SearchBook
 import app.ceres.reader.source.ExploreKind
 import app.ceres.reader.source.WebBook
+import app.ceres.reader.data.model.bookStats
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -151,6 +152,7 @@ fun ExploreScreen(onBack: () -> Unit, openDetail: (String) -> Unit) {
                         title = b.name,
                         subtitle = listOfNotNull(
                             b.author.takeIf { it.isNotBlank() },
+                            bookStats(b.score, b.wordCount),
                             b.kind?.takeIf { it.isNotBlank() },
                             b.latestChapterTitle?.let { "最新：$it" },
                         ).joinToString(" · ") + (b.intro?.let { "\n" + it.take(80) } ?: ""),

@@ -1,5 +1,6 @@
 package app.ceres.reader.data.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.Index
@@ -36,6 +37,7 @@ data class Book(
     var tocUrl: String = "",
     var latestChapterTitle: String? = null,
     var wordCount: String? = null,
+    var score: String? = null,
     var totalChapterNum: Int = 0,
     var durChapterIndex: Int = 0,
     var durChapterPos: Int = 0,
@@ -79,6 +81,8 @@ data class SourceEntity(
     val sortOrder: Int,
     val hasReview: Boolean,
     val json: String,
+    /** Last local change (import / enable toggle); newer side wins in WebDAV sync. */
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0,
 )
 
 /** List row for the sources screen; leaves out the (large) `json` column. */
@@ -107,6 +111,7 @@ data class SearchBook(
     var coverUrl: String? = null,
     var intro: String? = null,
     var wordCount: String? = null,
+    var score: String? = null,
     var latestChapterTitle: String? = null,
     var tocUrl: String = "",
     override var variable: String? = null,
@@ -114,6 +119,15 @@ data class SearchBook(
     fun toBook() = Book(
         bookUrl = bookUrl, origin = origin, originName = originName, name = name,
         author = author, kind = kind, coverUrl = coverUrl, intro = intro, wordCount = wordCount,
-        latestChapterTitle = latestChapterTitle, tocUrl = tocUrl, variable = variable,
+        score = score, latestChapterTitle = latestChapterTitle, tocUrl = tocUrl, variable = variable,
     )
+}
+
+/** "评分 9.5 · 320.1万字"; null when the source gave neither. */
+fun bookStats(score: String?, wordCount: String?): String? {
+    val parts = listOfNotNull(
+        score?.trim()?.takeIf { it.isNotEmpty() && it != "0" && it != "0.0" }?.let { "评分 $it" },
+        wordCount?.trim()?.takeIf { it.isNotEmpty() && it != "0" }?.let { if (it.endsWith("字")) it else "${it}字" },
+    )
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }

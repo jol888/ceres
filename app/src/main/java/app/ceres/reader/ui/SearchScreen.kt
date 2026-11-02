@@ -30,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.ceres.reader.AppGraph
 import app.ceres.reader.data.model.SearchBook
 import app.ceres.reader.source.WebBook
+import app.ceres.reader.data.model.bookStats
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -179,6 +180,7 @@ fun SearchScreen(onBack: () -> Unit, openDetail: (String) -> Unit) {
                     title = g.name,
                     subtitle = listOfNotNull(
                         g.author.takeIf { it.isNotBlank() },
+                        bookStats(g.books.firstNotNullOfOrNull { it.score }, g.books.firstNotNullOfOrNull { it.wordCount }),
                         first.kind?.takeIf { it.isNotBlank() },
                         first.latestChapterTitle?.let { "最新：$it" },
                     ).joinToString(" · ") + (first.intro?.let { "\n" + it.take(80) } ?: ""),

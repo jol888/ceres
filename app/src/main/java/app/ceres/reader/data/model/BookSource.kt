@@ -120,6 +120,8 @@ data class BookListRule(
     var bookUrl: String? = null,
     var coverUrl: String? = null,
     var wordCount: String? = null,
+    /** Ceres extension (not in Legado): book rating, e.g. "9.5". */
+    var score: String? = null,
 )
 
 data class BookInfoRule(
@@ -133,6 +135,8 @@ data class BookInfoRule(
     var coverUrl: String? = null,
     var tocUrl: String? = null,
     var wordCount: String? = null,
+    /** Ceres extension (not in Legado): book rating, e.g. "9.5". */
+    var score: String? = null,
     var canReName: String? = null,
     var downloadUrls: String? = null,
 )

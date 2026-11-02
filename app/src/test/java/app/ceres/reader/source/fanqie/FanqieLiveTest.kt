@@ -81,6 +81,8 @@ class FanqieLiveTest {
         assertEquals(FanqieUrls.toc(BOOK_ID), book.tocUrl)
         assertFalse("分类为空", book.kind.isNullOrBlank())
         assertFalse("简介为空", book.intro.isNullOrBlank())
+        assertFalse("评分为空", book.score.isNullOrBlank())
+        assertFalse("字数为空", book.wordCount.isNullOrBlank())
 
         // 目录
         val chapters = WebBook.getChapterList(source, book)

@@ -10,6 +10,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import app.ceres.reader.data.model.Book
 import app.ceres.reader.data.model.BookChapter
 import app.ceres.reader.data.model.KvEntry
@@ -73,20 +75,26 @@ interface SourceDao {
     @Query("SELECT * FROM sources WHERE enabled = 1 ORDER BY sortOrder, name")
     suspend fun enabled(): List<SourceEntity>
 
+    @Query("SELECT * FROM sources ORDER BY sortOrder, name")
+    suspend fun all(): List<SourceEntity>
+
     @Query("SELECT * FROM sources WHERE url = :url")
     suspend fun get(url: String): SourceEntity?
 
     @Upsert
     suspend fun upsertAll(list: List<SourceEntity>)
 
-    @Query("UPDATE sources SET enabled = :enabled WHERE url = :url")
-    suspend fun setEnabled(url: String, enabled: Boolean)
+    @Query("UPDATE sources SET enabled = :enabled, updatedAt = :at WHERE url = :url")
+    suspend fun setEnabled(url: String, enabled: Boolean, at: Long)
 
-    @Query("UPDATE sources SET enabled = :enabled")
-    suspend fun setAllEnabled(enabled: Boolean)
+    @Query("UPDATE sources SET enabled = :enabled, updatedAt = :at WHERE enabled != :enabled")
+    suspend fun setAllEnabled(enabled: Boolean, at: Long)
 
     @Query("DELETE FROM sources WHERE url = :url")
     suspend fun delete(url: String)
+
+    @Query("DELETE FROM sources WHERE url IN (:urls)")
+    suspend fun deleteAll(urls: List<String>)
 }
 
 @Dao
@@ -103,7 +111,7 @@ interface KvDao {
 
 @Database(
     entities = [Book::class, BookChapter::class, SourceEntity::class, KvEntry::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -113,8 +121,17 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun kvDao(): KvDao
 
     companion object {
+        /** Book rating + per-source change time for source sync. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE books ADD COLUMN score TEXT")
+                db.execSQL("ALTER TABLE sources ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "ceres.db")
+                .addMigrations(MIGRATION_1_2)
                 .fallbackToDestructiveMigration(true)
                 .build()
     }

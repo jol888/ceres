@@ -2,6 +2,7 @@ package app.ceres.reader
 
 import android.content.Context
 import app.ceres.reader.data.AppDatabase
+import app.ceres.reader.data.BackupManager
 import app.ceres.reader.data.BookRepository
 import app.ceres.reader.data.CacheManager
 import app.ceres.reader.data.KvDao
@@ -36,6 +37,8 @@ object AppGraph {
         private set
     lateinit var webDav: WebDavSync
         private set
+    lateinit var backup: BackupManager
+        private set
 
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var progressSyncJob: Job? = null
@@ -44,11 +47,12 @@ object AppGraph {
         db = AppDatabase.create(context)
         Kv.store = RoomKv(db.kvDao())
         settings = Settings(context)
-        sources = SourceRepository(db.sourceDao())
+        sources = SourceRepository(db.sourceDao(), settings)
         books = BookRepository(db, sources, File(context.filesDir, "books"))
         cache = CacheManager(appScope, books)
         importer = LocalImporter(context.applicationContext, books, db)
-        webDav = WebDavSync(books, settings)
+        webDav = WebDavSync(books, sources, settings)
+        backup = BackupManager(sources, settings, webDav)
     }
 
     /** Debounce WebDAV progress upload after reading. */

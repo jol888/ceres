@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import app.ceres.reader.AppGraph
 import app.ceres.reader.data.model.Book
+import app.ceres.reader.data.model.bookStats
 import kotlinx.coroutines.launch
 
 @Composable
@@ -85,7 +86,11 @@ fun ShelfScreen(
                     }.orEmpty()
                     ListRow(
                         title = book.name,
-                        subtitle = listOf(book.author, book.originName).filter { it.isNotBlank() }.joinToString(" · ") +
+                        subtitle = listOfNotNull(
+                            book.author.takeIf { it.isNotBlank() },
+                            book.originName.takeIf { it.isNotBlank() },
+                            bookStats(book.score, book.wordCount),
+                        ).joinToString(" · ") +
                             "\n$reading" + (book.latestChapterTitle?.let { "\n最新：$it" } ?: "") + cacheText,
                         trailing = if (book.totalChapterNum > 0) "${book.durChapterIndex + 1}/${book.totalChapterNum}" else null,
                         onLongClick = { menuFor = book },

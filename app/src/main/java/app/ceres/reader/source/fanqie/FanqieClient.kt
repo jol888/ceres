@@ -97,6 +97,7 @@ object FanqieClient {
                 tags.split(',', '，').map { it.trim() }.filter { it.isNotEmpty() }.forEach { add(it) }
             })
             addProperty("wordCount", formatWordCount(data.string("word_number")))
+            addProperty("score", data.string("score").orEmpty())
             addProperty("lastChapter", data.string("last_chapter_title").orEmpty())
             addProperty("tocUrl", FanqieUrls.toc(bookId))
         }

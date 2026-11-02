@@ -108,6 +108,7 @@ object WebBook {
             sb.author = formatAuthor(analyzeRule.getString(rule?.author))
             sb.kind = analyzeRule.getStringList(rule?.kind).joinToString(",").ifEmpty { null }
             sb.wordCount = analyzeRule.getString(rule?.wordCount).ifEmpty { null }
+            sb.score = analyzeRule.getString(rule?.score).ifEmpty { null }
             sb.latestChapterTitle = analyzeRule.getString(rule?.lastChapter).ifEmpty { null }
             sb.intro = analyzeRule.getString(rule?.intro).ifEmpty { null }
             sb.coverUrl = rule?.coverUrl?.takeIf { it.isNotBlank() }
@@ -126,7 +127,8 @@ object WebBook {
         return SearchBook(
             bookUrl = book.bookUrl, origin = book.origin, originName = book.originName,
             name = book.name, author = book.author, kind = book.kind, coverUrl = book.coverUrl,
-            intro = book.intro, wordCount = book.wordCount, latestChapterTitle = book.latestChapterTitle,
+            intro = book.intro, wordCount = book.wordCount, score = book.score,
+            latestChapterTitle = book.latestChapterTitle,
             tocUrl = book.tocUrl, variable = book.variable,
         )
     }
@@ -160,6 +162,7 @@ object WebBook {
         }
         ar.getStringList(rule.kind).joinToString(",").takeIf { it.isNotEmpty() }?.let { book.kind = it }
         ar.getString(rule.wordCount).takeIf { it.isNotEmpty() }?.let { book.wordCount = it }
+        ar.getString(rule.score).takeIf { it.isNotEmpty() }?.let { book.score = it }
         ar.getString(rule.lastChapter).takeIf { it.isNotEmpty() }?.let { book.latestChapterTitle = it }
         ar.getString(rule.intro).takeIf { it.isNotEmpty() }?.let { book.intro = it }
         rule.coverUrl?.takeIf { it.isNotBlank() }?.let { ar.getString(it, isUrl = true) }

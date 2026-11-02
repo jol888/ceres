@@ -12,7 +12,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.util.concurrent.ConcurrentHashMap
 
-class SourceRepository(private val dao: SourceDao) {
+class SourceRepository(private val dao: SourceDao, private val settings: Settings) {
     private val parsed = ConcurrentHashMap<String, Pair<String, BookSource>>()
 
     val items: Flow<List<SourceItem>> = dao.observeItems()
@@ -20,6 +20,8 @@ class SourceRepository(private val dao: SourceDao) {
     suspend fun get(url: String): BookSource? = dao.get(url)?.let(::toSource)
 
     suspend fun enabled(): List<BookSource> = dao.enabled().map(::toSource)
+
+    suspend fun allEntities(): List<SourceEntity> = dao.all()
 
     fun toSource(entity: SourceEntity): BookSource {
         parsed[entity.url]?.let { (json, src) -> if (json == entity.json) return src }
@@ -30,6 +32,7 @@ class SourceRepository(private val dao: SourceDao) {
 
     /** Imports a JSON array/object of Legado sources. Returns the number imported. */
     suspend fun importJson(json: String): Int {
+        val now = System.currentTimeMillis()
         val entities = withContext(Dispatchers.Default) {
             parseBookSources(json).map { s ->
                 SourceEntity(
@@ -40,11 +43,13 @@ class SourceRepository(private val dao: SourceDao) {
                     sortOrder = s.customOrder,
                     hasReview = s.hasReview(),
                     json = s.toJson(),
+                    updatedAt = now,
                 ).also { e -> parsed[e.url] = e.json to s }
             }
         }
         if (entities.isEmpty()) throw IllegalArgumentException("没有识别到书源（需要阅读格式的 JSON）")
         dao.upsertAll(entities)
+        settings.dropSourceRemovals(entities.map { it.url })
         return entities.size
     }
 
@@ -56,7 +61,7 @@ class SourceRepository(private val dao: SourceDao) {
                 resp.body.string()
             }
         }
-        return importJson(body)
+        return importJson(body).also { settings.addSourceSubscription(url) }
     }
 
     suspend fun importStream(open: () -> java.io.InputStream?): Int {
@@ -65,12 +70,21 @@ class SourceRepository(private val dao: SourceDao) {
         return importJson(text)
     }
 
-    suspend fun exportAll(): String {
-        val list = dao.enabled().map { toSource(it) }
-        return GSON.toJson(list)
+    /** All sources as Legado JSON objects, with the current enabled state written back in. */
+    suspend fun exportSources(): List<BookSource> =
+        dao.all().map { toSource(it).copy(enabled = it.enabled) }
+
+    suspend fun setEnabled(url: String, enabled: Boolean) = dao.setEnabled(url, enabled, System.currentTimeMillis())
+    suspend fun setAllEnabled(enabled: Boolean) = dao.setAllEnabled(enabled, System.currentTimeMillis())
+
+    suspend fun delete(url: String) {
+        dao.delete(url)
+        settings.addSourceRemoval(url, System.currentTimeMillis())
     }
 
-    suspend fun setEnabled(url: String, enabled: Boolean) = dao.setEnabled(url, enabled)
-    suspend fun setAllEnabled(enabled: Boolean) = dao.setAllEnabled(enabled)
-    suspend fun delete(url: String) = dao.delete(url)
+    /** Writes sources pulled from sync as-is (keeps their remote change time). */
+    suspend fun applySynced(upserts: List<SourceEntity>, deletes: List<String>) {
+        if (upserts.isNotEmpty()) dao.upsertAll(upserts)
+        if (deletes.isNotEmpty()) dao.deleteAll(deletes)
+    }
 }

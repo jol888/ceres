@@ -138,4 +138,45 @@ class Settings(context: Context) {
         val next = webDavRemovals().filter { it.bookUrl in keepUrls }
         prefs.edit().putString("webdav.removals", gson.toJson(next)).apply()
     }
+
+    /** Deleted book sources (url → time), so sync doesn't pull them back. Reuses [SyncRemoval.bookUrl] as the source url. */
+    fun sourceRemovals(): List<SyncRemoval> = readList("sources.removals")
+
+    fun setSourceRemovals(list: List<SyncRemoval>) = writeList("sources.removals", list)
+
+    fun addSourceRemoval(url: String, removedAt: Long) {
+        setSourceRemovals(sourceRemovals().filter { it.bookUrl != url } + SyncRemoval(url, removedAt))
+    }
+
+    fun dropSourceRemovals(urls: Collection<String>) {
+        if (urls.isEmpty()) return
+        val set = urls.toSet()
+        setSourceRemovals(sourceRemovals().filter { it.bookUrl !in set })
+    }
+
+    /** Addresses sources were imported from (「从网络地址导入」). */
+    fun sourceSubscriptions(): List<SourceSubscription> = readList("sources.subscriptions")
+
+    fun setSourceSubscriptions(list: List<SourceSubscription>) = writeList("sources.subscriptions", list)
+
+    fun addSourceSubscription(url: String, at: Long = System.currentTimeMillis()) {
+        val clean = url.trim()
+        if (clean.isEmpty() || sourceSubscriptions().any { it.url == clean }) return
+        setSourceSubscriptions(sourceSubscriptions() + SourceSubscription(clean, at))
+    }
+
+    private inline fun <reified T> readList(key: String): List<T> {
+        val raw = prefs.getString(key, null) ?: return emptyList()
+        return runCatching { gson.fromJson<List<T>>(raw, object : TypeToken<List<T>>() {}.type) }
+            .getOrNull().orEmpty()
+    }
+
+    private fun writeList(key: String, list: List<Any>) {
+        prefs.edit().putString(key, gson.toJson(list)).apply()
+    }
 }
+
+data class SourceSubscription(
+    val url: String = "",
+    val addedAt: Long = 0,
+)

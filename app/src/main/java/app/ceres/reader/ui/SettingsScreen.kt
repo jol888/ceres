@@ -3,6 +3,8 @@ package app.ceres.reader.ui
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -57,8 +59,50 @@ fun SettingsScreen(onBack: () -> Unit) {
     var registering by remember { mutableStateOf(false) }
     var fanqieDevice by remember { mutableStateOf<String?>(null) }
 
+    var backingUp by remember { mutableStateOf(false) }
+    var exportAt by remember { mutableStateOf(0L) }
+
     LaunchedEffect(Unit) {
         fanqieDevice = withContext(Dispatchers.IO) { runCatching { FanqieClient.currentDeviceId() }.getOrNull() }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        backingUp = true
+        scope.launch {
+            runCatching {
+                AppGraph.backup.export(exportAt) { json ->
+                    val out = context.contentResolver.openOutputStream(uri, "wt")
+                        ?: throw java.io.IOException("无法写入所选位置")
+                    out.use { it.write(json.toByteArray()) }
+                }
+            }.onSuccess { r ->
+                val cloud = when {
+                    r.remotePath != null -> "，已上传 ${r.remotePath}"
+                    r.uploadError != null -> "，上传 WebDAV 失败：${r.uploadError}"
+                    else -> "（未配置 WebDAV，未上传）"
+                }
+                Toast.makeText(context, "已导出 ${r.sourceCount} 个书源到 ${r.fileName}$cloud", Toast.LENGTH_LONG).show()
+            }.onFailure { Toast.makeText(context, "导出失败：${it.message}", Toast.LENGTH_LONG).show() }
+            backingUp = false
+        }
+    }
+
+    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        backingUp = true
+        scope.launch {
+            runCatching {
+                val text = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                } ?: throw java.io.IOException("无法读取文件")
+                AppGraph.backup.restore(text)
+            }.onSuccess { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                .onFailure { Toast.makeText(context, "恢复失败：${it.message}", Toast.LENGTH_LONG).show() }
+            backingUp = false
+        }
     }
 
     Screen(title = "设置", onBack = onBack) {
@@ -264,7 +308,30 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
             Text(
-                "双向同步按阅读时间合并进度；移出书架会写入墓碑以免其它设备拉回。仅上传会用本地书架覆盖云端书单。",
+                "双向同步按阅读时间合并进度；移出书架会写入墓碑以免其它设备拉回。仅上传会用本地书架覆盖云端书单。" +
+                    "书源一并同步到 ceres/sources.json，按修改时间合并。",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            RowDivider()
+
+            Text("备份", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                InkButton(
+                    if (backingUp) "处理中…" else "导出",
+                    Modifier.weight(1f).padding(end = 4.dp),
+                    enabled = !backingUp,
+                ) {
+                    exportAt = System.currentTimeMillis()
+                    exportLauncher.launch(AppGraph.backup.fileName(exportAt))
+                }
+                InkButton("从备份恢复", Modifier.weight(1f).padding(start = 4.dp), enabled = !backingUp) {
+                    restoreLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                }
+            }
+            Text(
+                "导出全部书源（含启用状态和导入地址）与 WebDAV 账号密码，文件名带时间戳；" +
+                    "已配置 WebDAV 时同时上传到 ceres/backups/。文件含明文密码，请妥善保管。",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 8.dp),
             )

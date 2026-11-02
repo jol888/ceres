@@ -27,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.ceres.reader.AppGraph
 import app.ceres.reader.data.model.Book
 import app.ceres.reader.data.model.BookChapter
+import app.ceres.reader.data.model.bookStats
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -102,7 +103,7 @@ fun DetailScreen(bookUrl: String, onBack: () -> Unit, openReader: (Int?) -> Unit
                         if (book.author.isNotBlank()) Text("作者：${book.author}")
                         Text("来源：${book.originName}", style = MaterialTheme.typography.bodySmall)
                         book.kind?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                        book.wordCount?.takeIf { it.isNotBlank() }?.let { Text("字数：$it", style = MaterialTheme.typography.bodySmall) }
+                        bookStats(book.score, book.wordCount)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                         book.latestChapterTitle?.let { Text("最新：$it", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     }
                 }
