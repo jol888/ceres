@@ -144,6 +144,36 @@ class FanqieLiveTest {
     }
 
     @Test
+    fun exploreRanksAndCategories() {
+        val kinds = WebBook.exploreKinds(source)
+        println("发现 ${kinds.size} 项: " + kinds.take(8).joinToString { it.title })
+        assertTrue("缺少分组标题", kinds.any { it.url == null && it.title == "男频" })
+        val ranks = kinds.dropWhile { it.title != "榜单" }.drop(1).takeWhile { it.url != null }
+        assertEquals(
+            listOf("热门榜", "飙升榜", "热搜榜", "潜力榜", "听书榜"),
+            ranks.map { it.title },
+        )
+        val category = kinds.first { it.title == "都市日常" }
+
+        for (rank in ranks) {
+            val ranked = WebBook.explore(source, rank.url!!, 1)
+            println("${rank.title} ${ranked.size} 本: " + ranked.take(3).joinToString { "${it.name}(${it.score})" })
+            assertTrue("${rank.title}为空", ranked.size >= 10)
+            assertTrue("${rank.title}缺少评分", ranked.all { !it.score.isNullOrBlank() })
+            ranked.forEach { assertNotNull("bookUrl 解析不出书籍 id: ${it.bookUrl}", FanqieUrls.bookIdOf(it.bookUrl)) }
+        }
+
+        val page1 = WebBook.explore(source, category.url!!, 1)
+        val page2 = WebBook.explore(source, category.url!!, 2)
+        println("都市日常 第1页 ${page1.size} 本 / 第2页 ${page2.size} 本: " +
+            page1.take(3).joinToString { "${it.name}(${it.score}, ${it.wordCount})" })
+        assertTrue("分类第一页为空", page1.isNotEmpty())
+        assertTrue("分类翻页没有新书", page2.any { b -> page1.none { it.bookUrl == b.bookUrl } })
+        assertTrue("分类字数格式不对: ${page1.map { it.wordCount }}",
+            page1.all { it.wordCount.orEmpty().matches(Regex("\\d+(\\.\\d)?万|\\d+")) })
+    }
+
+    @Test
     fun batchPrefetchServesChapters() {
         val book = Book(
             bookUrl = FanqieUrls.book(BOOK_ID),

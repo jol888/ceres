@@ -1,0 +1,82 @@
+[
+  {
+    "bookSourceName": "番茄小说·段评",
+    "bookSourceGroup": "番茄",
+    "bookSourceUrl": "https://fanqienovel.com",
+    "bookSourceType": 0,
+    "bookSourceComment": "公开番茄镜像。搜索走 novel.snssdk.com 公开接口；详情、目录、正文和段评由 Ceres 内置的番茄协议实现完成（不打包番茄 App）。",
+    "enabled": true,
+    "enabledExplore": true,
+    "enabledCookieJar": false,
+    "customOrder": 0,
+    "weight": 0,
+    "exploreUrl": "[{\"title\": \"榜单\"}, {\"title\": \"热门榜\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/rank/rank_list/v2/?aid=13&type=1&limit=30&side_type=10&offset={{(page-1)*30}}\"}, {\"title\": \"飙升榜\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/rank/rank_list/v2/?aid=13&type=1&limit=30&side_type=12&offset={{(page-1)*30}}\"}, {\"title\": \"热搜榜\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/rank/rank_list/v2/?aid=13&type=1&limit=30&side_type=13&offset={{(page-1)*30}}\"}, {\"title\": \"潜力榜\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/rank/rank_list/v2/?aid=13&type=1&limit=30&side_type=15&offset={{(page-1)*30}}\"}, {\"title\": \"听书榜\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/rank/rank_list/v2/?aid=13&type=1&limit=30&side_type=17&offset={{(page-1)*30}}\"}, {\"title\": \"男频\"}, {\"title\": \"西方奇幻\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=1141&offset={{(page-1)*20}}\"}, {\"title\": \"东方仙侠\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=1140&offset={{(page-1)*20}}\"}, {\"title\": \"科幻末世\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=8&offset={{(page-1)*20}}\"}, {\"title\": \"男频衍生\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=1016&offset={{(page-1)*20}}\"}, {\"title\": \"都市高武\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=1014&offset={{(page-1)*20}}\"}, {\"title\": \"悬疑灵异\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=751&offset={{(page-1)*20}}\"}, {\"title\": \"悬疑脑洞\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=539&offset={{(page-1)*20}}\"}, {\"title\": \"抗战谍战\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=504&offset={{(page-1)*20}}\"}, {\"title\": \"历史古代\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=273&offset={{(page-1)*20}}\"}, {\"title\": \"历史脑洞\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=272&offset={{(page-1)*20}}\"}, {\"title\": \"都市种田\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=263&offset={{(page-1)*20}}\"}, {\"title\": \"都市脑洞\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=262&offset={{(page-1)*20}}\"}, {\"title\": \"都市日常\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=261&offset={{(page-1)*20}}\"}, {\"title\": \"玄幻脑洞\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=257&offset={{(page-1)*20}}\"}, {\"title\": \"战神赘婿\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=27&offset={{(page-1)*20}}\"}, {\"title\": \"动漫衍生\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=718&offset={{(page-1)*20}}\"}, {\"title\": \"游戏体育\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=746&offset={{(page-1)*20}}\"}, {\"title\": \"传统玄幻\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=258&offset={{(page-1)*20}}\"}, {\"title\": \"都市修真\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=1&category_id=124&offset={{(page-1)*20}}\"}, {\"title\": \"女频\"}, {\"title\": \"女频悬疑\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=747&offset={{(page-1)*20}}\"}, {\"title\": \"古风世情\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=1139&offset={{(page-1)*20}}\"}, {\"title\": \"科幻末世\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=8&offset={{(page-1)*20}}\"}, {\"title\": \"女频衍生\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=1015&offset={{(page-1)*20}}\"}, {\"title\": \"民国言情\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=1017&offset={{(page-1)*20}}\"}, {\"title\": \"悬疑脑洞\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=539&offset={{(page-1)*20}}\"}, {\"title\": \"青春甜宠\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=749&offset={{(page-1)*20}}\"}, {\"title\": \"双男主\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=275&offset={{(page-1)*20}}\"}, {\"title\": \"古言脑洞\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=253&offset={{(page-1)*20}}\"}, {\"title\": \"现言脑洞\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=267&offset={{(page-1)*20}}\"}, {\"title\": \"玄幻言情\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=248&offset={{(page-1)*20}}\"}, {\"title\": \"宫斗宅斗\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=246&offset={{(page-1)*20}}\"}, {\"title\": \"豪门总裁\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=748&offset={{(page-1)*20}}\"}, {\"title\": \"动漫衍生\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=718&offset={{(page-1)*20}}\"}, {\"title\": \"星光璀璨\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=745&offset={{(page-1)*20}}\"}, {\"title\": \"游戏体育\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=746&offset={{(page-1)*20}}\"}, {\"title\": \"职场婚恋\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=750&offset={{(page-1)*20}}\"}, {\"title\": \"双女主\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=704&offset={{(page-1)*20}}\"}, {\"title\": \"年代\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=79&offset={{(page-1)*20}}\"}, {\"title\": \"种田\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=23&offset={{(page-1)*20}}\"}, {\"title\": \"快穿\", \"url\": \"https://novel.snssdk.com/api/novel/channel/homepage/new_category/book_list/v1/?parent_enterfrom=novel_channel_category.tab.&aid=1967&limit=20&word_number=0&creation_status=-1&sort_by=0&gender=0&category_id=24&offset={{(page-1)*20}}\"}]",
+    "searchUrl": "https://novel.snssdk.com/api/novel/channel/homepage/search/search/v1/?q={{encodeURIComponent(key)}}&aid=1967&offset={{(page-1)*10}}&count=10",
+    "ruleSearch": {
+      "bookList": "$.data.ret_data[*]",
+      "name": "$.title",
+      "author": "$.author",
+      "intro": "$.abstract",
+      "kind": "$.category",
+      "lastChapter": "$.last_chapter_title",
+      "coverUrl": "$.thumb_url",
+      "score": "$.score",
+      "bookUrl": "@js:java.fanqieBookUrl(java.getString('$.book_id'))"
+    },
+    "ruleExplore": {
+      "bookList": "$.data.data[*]||$.data.result[*]",
+      "name": "$.book_name",
+      "author": "$.author",
+      "intro": "$.abstract",
+      "kind": "$.category",
+      "coverUrl": "$.thumb_url",
+      "wordCount": "$.word_number@js:var n = Number(result); n > 0 ? (n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n)) : ''",
+      "score": "$.score",
+      "bookUrl": "@js:java.fanqieBookUrl(java.getString('$.book_id'))"
+    },
+    "ruleBookInfo": {
+      "name": "$.name",
+      "author": "$.author",
+      "intro": "$.intro",
+      "kind": "$.kind",
+      "lastChapter": "$.lastChapter",
+      "coverUrl": "$.coverUrl",
+      "wordCount": "$.wordCount",
+      "score": "$.score",
+      "tocUrl": "$.tocUrl"
+    },
+    "ruleToc": {
+      "chapterList": "$.data.chapterListWithVolume[*][*]",
+      "chapterName": "$.title",
+      "chapterUrl": "@js:java.fanqieChapterUrl(book.bookUrl, java.getString('$.itemId'))",
+      "isVip": "$.isChapterLock",
+      "isPay": "$.needPay"
+    },
+    "ruleContent": {
+      "content": "@js:result"
+    },
+    "ruleReview": {
+      "enabled": true,
+      "reviewSummaryUrl": "fanqie://reviews/summary",
+      "summaryListRule": "$.items[*]",
+      "summaryParagraphIndexRule": "$.paraIndex",
+      "summaryParagraphDataRule": "$.paraIndex",
+      "summaryCountRule": "$.count",
+      "reviewDetailUrl": "fanqie://reviews/{{paraIndex}}/{{page}}",
+      "reviewDetailNextPageUrl": "$.next",
+      "detailListRule": "$.items[*]",
+      "detailIdRule": "$.id",
+      "detailAvatarRule": "$.avatar",
+      "detailNameRule": "$.name",
+      "detailBadgeRule": "$.badges",
+      "detailContentRule": "$.content",
+      "reviewQuoteUrl": "fanqie://replies/{{reviewId}}/{{page}}",
+      "replyListRule": "$.items[*]",
+      "replyIdRule": "$.id",
+      "replyAvatarRule": "$.avatar",
+      "replyNameRule": "$.name",
+      "replyBadgeRule": "$.badges",
+      "replyContentRule": "$.content"
+    }
+  }
+]
