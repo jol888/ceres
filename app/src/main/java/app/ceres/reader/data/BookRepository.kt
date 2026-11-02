@@ -7,6 +7,7 @@ import app.ceres.reader.source.ReviewPage
 import app.ceres.reader.source.ReviewSummary
 import app.ceres.reader.source.SourceException
 import app.ceres.reader.source.WebBook
+import app.ceres.reader.source.fanqie.FanqieUrls
 import app.ceres.reader.util.md5
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -142,6 +143,19 @@ class BookRepository(
         } finally {
             if (!lock.isLocked) inFlight.remove(f.path, lock)
         }
+    }
+
+    /**
+     * Fetches many chapters in one request when the source has a batch API (Fanqie),
+     * so the following [content] calls are served without per-chapter requests.
+     * Returns how many chapters were prefetched; 0 means callers fall back to [content] alone.
+     */
+    suspend fun prefetch(book: Book, chapters: List<BookChapter>): Int {
+        if (book.isLocal) return 0
+        val urls = chapters.filter { !isCached(book, it) }.map { it.url }
+            .filter { FanqieUrls.chapterIdsOf(it) != null }
+        if (urls.isEmpty()) return 0
+        return runInterruptible(Dispatchers.IO) { FanqieUrls.prefetchChapters(urls) }
     }
 
     private suspend fun readCache(f: File) =

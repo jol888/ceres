@@ -17,9 +17,13 @@ import java.util.Base64
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
 
-class FanqieException(message: String) : Exception(message)
+open class FanqieException(message: String) : Exception(message)
+
+/** 服务端没用当前密钥加密（crypt_status=2），密钥已轮换，重新拉取正文即可。 */
+private class FanqieKeyRotatedException : FanqieException("正文密钥失效，已重新注册")
 
 /**
  * 番茄 App 接口的最小客户端。
@@ -38,8 +42,14 @@ object FanqieClient {
     private const val V1_KEY = "fanqie_v1_key"
     private const val HARD_KEY_HEX = "ac25c67ddd8f38c1b37a2348828e222e"
     private const val KEY_TTL_MS = 7L * 24 * 3600 * 1000
+    private const val KEY_ROTATE_COOLDOWN_MS = 60_000L
+    private const val CRYPT_STATUS_NO_KEY = 2
     private const val COMMENT_PAGE_SIZE = 20
     private const val REPLY_PAGE_SIZE = 50
+    /** 批量正文接口单次请求的章节数。 */
+    private const val BATCH_SIZE = 30
+    /** 预取暂存上限，超过就整体丢弃，防止取消下载后残留过多正文。 */
+    private const val PREFETCH_LIMIT = 300
     /** 番茄把章节标题放在 10000 这个特殊段落下标上。 */
     private const val CHAPTER_TITLE_PARA_INDEX = 10000
 
@@ -54,6 +64,12 @@ object FanqieClient {
 
     @Volatile
     private var deviceCache: FanqieDevice? = null
+
+    private var lastKeyRotation = 0L
+    private var lastRotatedKey: String? = null
+
+    /** [prefetch] 拉回来、尚未被 [chapter] 取走的正文，键为 `bookId/itemId`。 */
+    private val prefetched = ConcurrentHashMap<String, String>()
 
     // ------------------------------------------------------------------
     // 对外入口
@@ -105,24 +121,61 @@ object FanqieClient {
 
     /** 章节正文（已解密、已解压，并去掉重复的章节标题块）。 */
     fun chapter(bookId: String, itemId: String): String {
+        prefetched.remove(prefetchKey(bookId, itemId))?.let { return it }
         val d = device()
         // 必须先注册密钥：新设备在 registerkey 之前拉正文会拿到 crypt_status=2 的 "Invalid"。
-        var key = ensureKey(d)
-        var item = fetchChapterItem(d, bookId, itemId)
-        return try {
-            stripChapterTitle(decodeChapter(item, key))
-        } catch (first: Exception) {
-            // 密钥过期/轮换时接口仍返回 crypt_status=0，只有解密会失败；重注册后重新拉取。
-            invalidateKey()
-            key = ensureKey(d)
-            item = fetchChapterItem(d, bookId, itemId)
+        ensureKey(d)
+        val html = try {
+            decodeChapter(d, fetchChapterItem(d, bookId, itemId))
+        } catch (_: FanqieKeyRotatedException) {
+            decodeChapter(d, fetchChapterItem(d, bookId, itemId))
+        }
+        return stripChapterTitle(html)
+    }
+
+    /**
+     * 用批量正文接口一次拉取多章，解密后暂存；随后的 [chapter] 直接取用，不再逐章请求。
+     * 返回成功暂存的章节数。锁章/空章不会暂存，交给 [chapter] 单独请求时报错。
+     */
+    fun prefetch(bookId: String, itemIds: List<String>): Int {
+        val ids = itemIds.map { it.trim() }
+            .filter { it.isNotEmpty() && !prefetched.containsKey(prefetchKey(bookId, it)) }
+            .distinct()
+        if (ids.isEmpty()) return 0
+        val d = device()
+        var stored = 0
+        for (batch in ids.chunked(BATCH_SIZE)) {
+            ensureKey(d)
+            var (decoded, rotated) = decodeBatch(d, bookId, batch)
+            if (rotated) decoded = decodeBatch(d, bookId, batch).first
+            if (prefetched.size + decoded.size > PREFETCH_LIMIT) prefetched.clear()
+            decoded.forEach { (itemId, html) -> prefetched[prefetchKey(bookId, itemId)] = html }
+            stored += decoded.size
+        }
+        return stored
+    }
+
+    /** 拉取并解密一批章节；第二个值表示期间密钥被轮换过，需要整批重拉。 */
+    private fun decodeBatch(
+        d: FanqieDevice,
+        bookId: String,
+        itemIds: List<String>,
+    ): Pair<List<Pair<String, String>>, Boolean> {
+        var rotated = false
+        val decoded = fetchChapterItems(d, bookId, itemIds).mapNotNull { (itemId, item) ->
             try {
-                stripChapterTitle(decodeChapter(item, key))
-            } catch (second: Exception) {
-                throw FanqieException("正文解密失败: ${second.message ?: first.message}")
+                itemId to stripChapterTitle(decodeChapter(d, item))
+            } catch (_: FanqieKeyRotatedException) {
+                rotated = true
+                null
+            } catch (_: Exception) {
+                null
             }
         }
+        return decoded to rotated
     }
+
+    private fun prefetchKey(bookId: String, itemId: String) = "$bookId/$itemId"
 
     /**
      * 番茄正文开头带一个 `<h1 class="chapterTitle…">` 标题块，而阅读器已经单独显示
@@ -245,31 +298,65 @@ object FanqieClient {
     // ------------------------------------------------------------------
 
     private fun fetchChapterItem(d: FanqieDevice, bookId: String, itemId: String): JsonObject {
+        val items = fetchChapterItems(d, bookId, listOf(itemId))
+        return items[itemId] ?: throw FanqieException("正文没有返回章节 $itemId")
+    }
+
+    /** `batch_full` 的 `item_ids` 用逗号分隔，一次可取多章；缺失或结构异常的章节不出现在结果里。 */
+    private fun fetchChapterItems(
+        d: FanqieDevice,
+        bookId: String,
+        itemIds: List<String>,
+    ): Map<String, JsonObject> {
         val q = commonQuery(d)
-        q["item_ids"] = itemId
+        q["item_ids"] = itemIds.joinToString(",")
         q["key_register_ts"] = "0"
         q["book_id"] = bookId
         q["req_type"] = "1"
         val root = signedCall(d, "/reading/reader/batch_full/v", q)
         checkCode(root, "正文")
         val data = root.getAsJsonObject("data") ?: throw FanqieException("正文缺少 data")
-        val element = data.get(itemId) ?: throw FanqieException("正文没有返回章节 $itemId")
-        return when {
-            element.isJsonArray -> element.asJsonArray.firstOrNull { it.isJsonObject }?.asJsonObject
-            element.isJsonObject -> element.asJsonObject
-            else -> null
-        } ?: throw FanqieException("章节 $itemId 的结构异常")
+        return itemIds.mapNotNull { itemId ->
+            val element = data.get(itemId) ?: return@mapNotNull null
+            val item = when {
+                element.isJsonArray -> element.asJsonArray.firstOrNull { it.isJsonObject }?.asJsonObject
+                element.isJsonObject -> element.asJsonObject
+                else -> null
+            }
+            item?.let { itemId to it }
+        }.toMap()
     }
 
-    private fun decodeChapter(item: JsonObject, keyHex: String): String {
+    /**
+     * 解密并解压正文，解密失败时自动轮换密钥：
+     * - crypt_status=0 但解不开：本地密钥过期，轮换后解同一份密文
+     *   （同一设备重新注册拿到的就是服务端当前密钥，不必重新拉取）；
+     * - crypt_status=2（正文是 "Invalid"）：服务端没有可用密钥，轮换后抛 [FanqieKeyRotatedException]，
+     *   由调用方重新拉取。
+     */
+    private fun decodeChapter(d: FanqieDevice, item: JsonObject): String {
         val content = item.string("content") ?: item.string("origin_content") ?: ""
         if (content.isBlank()) throw FanqieException("章节内容为空")
-        var bytes = if (item.int("crypt_status") == 0) {
+        val cryptStatus = item.int("crypt_status")
+        if (cryptStatus == CRYPT_STATUS_NO_KEY) {
+            rotateKey(d, ensureKey(d))
+            throw FanqieKeyRotatedException()
+        }
+        var bytes = if (cryptStatus == 0) {
             val raw = Base64.getMimeDecoder().decode(content)
             if (raw.size <= 16) throw FanqieException("章节密文长度异常")
-            FanqieCrypto.aesCbcDecrypt(
-                raw.copyOfRange(16, raw.size), FanqieCrypto.hex(keyHex), raw.copyOfRange(0, 16),
-            )
+            val iv = raw.copyOfRange(0, 16)
+            val cipher = raw.copyOfRange(16, raw.size)
+            val key = ensureKey(d)
+            try {
+                FanqieCrypto.aesCbcDecrypt(cipher, FanqieCrypto.hex(key), iv)
+            } catch (first: Exception) {
+                try {
+                    FanqieCrypto.aesCbcDecrypt(cipher, FanqieCrypto.hex(rotateKey(d, key)), iv)
+                } catch (second: Exception) {
+                    throw FanqieException("正文解密失败: ${second.message ?: first.message}")
+                }
+            }
         } else {
             content.toByteArray(Charsets.UTF_8)
         }
@@ -428,6 +515,26 @@ object FanqieClient {
         if (record.string("deviceId") != deviceId) return null
         if (System.currentTimeMillis() - record.long("ts") > KEY_TTL_MS) return null
         return record.string("key")?.takeIf { it.length == 32 }
+    }
+
+    /**
+     * 丢弃解不开正文的 [staleKey] 并重新注册。批量解密时多章会同时失败，
+     * 若别的线程已经换过密钥就直接用新的，避免每章都重新注册一次。
+     */
+    private fun rotateKey(d: FanqieDevice, staleKey: String): String {
+        synchronized(lock) {
+            val current = loadKey(d.deviceId)
+            if (current != null && current != staleKey) return current
+            // 刚换来的密钥还解不开，说明是这一章本身坏了，不再反复注册。
+            if (current != null && current == lastRotatedKey &&
+                System.currentTimeMillis() - lastKeyRotation < KEY_ROTATE_COOLDOWN_MS
+            ) {
+                return current
+            }
+            invalidateKey()
+            lastKeyRotation = System.currentTimeMillis()
+            return ensureKey(d).also { lastRotatedKey = it }
+        }
     }
 
     private fun invalidateKey() = Kv.put(V1_KEY, null)
@@ -869,6 +976,18 @@ object FanqieUrls {
         return value.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
     }
 
+    /** `fanqie://chapter/<bookId>/<itemId>` 拆成 (bookId, itemId)；不是番茄章节地址返回 null。 */
+    fun chapterIdsOf(url: String?): Pair<String, String>? {
+        val m = CHAPTER_URL.find(url?.trim().orEmpty()) ?: return null
+        return m.groupValues[1] to m.groupValues[2]
+    }
+
+    /** 批量预取同一本书的番茄章节正文；非番茄章节会被忽略。 */
+    fun prefetchChapters(urls: List<String>): Int =
+        urls.mapNotNull { chapterIdsOf(it) }
+            .groupBy({ it.first }, { it.second })
+            .entries.sumOf { (bookId, itemIds) -> FanqieClient.prefetch(bookId, itemIds) }
+
     private fun chapterContext(baseUrl: String?): Pair<String, String> {
         val raw = baseUrl?.substringAfter(SCHEME, "").orEmpty().substringBefore('?').trim('/')
         val parts = raw.split('/').filter { it.isNotEmpty() }
@@ -885,5 +1004,6 @@ object FanqieUrls {
     private fun bad(url: String) = FanqieException("无法解析的番茄地址: $url")
 
     private val BOOK_IN_URL = Regex("fanqie://(?:book|chapter|toc)/(\\d+)")
+    private val CHAPTER_URL = Regex("^fanqie://chapter/(\\d+)/(\\d+)")
     private val WEB_BOOK = Regex("(?:fanqienovel\\.com/(?:page|reader)/|bookId=)(\\d+)")
 }

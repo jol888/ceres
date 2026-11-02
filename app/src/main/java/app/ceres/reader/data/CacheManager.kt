@@ -1,6 +1,8 @@
 package app.ceres.reader.data
 
 import app.ceres.reader.data.model.Book
+import app.ceres.reader.data.model.BookChapter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -40,13 +42,17 @@ class CacheManager(private val scope: CoroutineScope, private val books: BookRep
                 it + (book.bookUrl to CacheProgress(done, targets.size, failed, running))
             }
             publish(true)
-            for (c in targets) {
-                val next = chapters.getOrNull(c.index + 1)
-                runCatching { books.content(book, c, next) }
-                    .onSuccess { done++ }
-                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; failed++ }
-                publish(true)
-                delay(150)
+            for (batch in targets.chunked(BATCH_SIZE)) {
+                val batched = prefetch(book, batch)
+                for (c in batch) {
+                    val next = chapters.getOrNull(c.index + 1)
+                    runCatching { books.content(book, c, next) }
+                        .onSuccess { done++ }
+                        .onFailure { if (it is CancellationException) throw it; failed++ }
+                    publish(true)
+                    if (!batched) delay(150)
+                }
+                if (batched) delay(BATCH_DELAY_MS)
             }
             publish(false)
             jobs.remove(book.bookUrl)
@@ -58,11 +64,24 @@ class CacheManager(private val scope: CoroutineScope, private val books: BookRep
         if (book.isLocal || count <= 0) return
         scope.launch {
             val chapters = books.chapters(book.bookUrl)
-            for (i in fromIndex until minOf(chapters.size, fromIndex + count)) {
+            val range = fromIndex.coerceAtLeast(0) until minOf(chapters.size, fromIndex + count)
+            prefetch(book, range.map { chapters[it] }.filter { !it.isVolume })
+            for (i in range) {
                 val c = chapters[i]
                 if (c.isVolume || books.isCached(book, c)) continue
                 runCatching { books.content(book, c, chapters.getOrNull(i + 1)) }
             }
         }
+    }
+
+    /** True when the batch API served these chapters; failures fall back to per-chapter fetching. */
+    private suspend fun prefetch(book: Book, chapters: List<BookChapter>): Boolean =
+        runCatching { books.prefetch(book, chapters) > 0 }
+            .onFailure { if (it is CancellationException) throw it }
+            .getOrDefault(false)
+
+    private companion object {
+        const val BATCH_SIZE = 30
+        const val BATCH_DELAY_MS = 500L
     }
 }
