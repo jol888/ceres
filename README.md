@@ -29,7 +29,7 @@
 
 仓库内置 `fanqie://` 合成地址与番茄协议实现（Ceres 自己的 Kotlin 代码，不打包、不依赖番茄 App），能够处理番茄的签名请求、正文解密和段评接口。搜索使用公开的 `novel.snssdk.com` 接口；详情、目录、正文、段评由 Ceres 内的番茄模块完成。
 
-配套书源单独发布：[jol888/fanqie-legado-source](https://github.com/jol888/fanqie-legado-source)。该源依赖本仓库的 `fanqie://` 实现，原版 Legado 无法直接使用。
+番茄书源已内置（`app/src/main/assets/fanqie_novel_source.json`），不会自动导入：在「书源 → 导入 → 网络地址」（或剪贴板）输入任意 `fanqie://*.json`（如 `fanqie://番茄.json`）即可导入，再次输入可更新到内置版本。书源带发现：热门 / 飙升 / 热搜 / 潜力 / 听书榜与男女频主分类。该源依赖本仓库的 `fanqie://` 实现，原版 Legado 无法直接使用。
 
 首次阅读会自动注册设备身份并保存正文密钥；密钥过期或解密失败时会自动重新注册。
 
@@ -51,13 +51,12 @@ APK 输出：`app/build/outputs/apk/debug/app-debug.apk`。
 # 单元测试（不访问网络）
 ./gradlew :app:testDebugUnitTest
 
-# 番茄端到端联调（真实网络，需先取得书源 JSON）
-CERES_LIVE=1 CERES_FANQIE_SOURCE=/path/to/fanqie_novel_source.json \
-  ./gradlew :app:testDebugUnitTest \
+# 番茄端到端联调（真实网络，默认使用内置书源）
+CERES_LIVE=1 ./gradlew :app:testDebugUnitTest \
   --tests 'app.ceres.reader.source.fanqie.FanqieLiveTest'
 ```
 
-联调用例默认跳过；找不到书源文件时也会跳过。它会依次检查 `CERES_FANQIE_SOURCE`、仓库根目录和相邻的 `fanqie-legado-source` 目录。
+联调用例默认跳过；可用 `CERES_FANQIE_SOURCE=/path/to/source.json` 换成别的书源文件。
 
 ## CI 与自动构建
 

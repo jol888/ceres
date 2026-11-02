@@ -33,8 +33,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.ceres.reader.AppGraph
+import app.ceres.reader.data.SourceRepository
 import app.ceres.reader.data.model.SourceItem
 import kotlinx.coroutines.launch
+
+private fun isImportUrl(text: String): Boolean =
+    text.trim().startsWith("http") || SourceRepository.isBuiltinFanqie(text)
 
 @Composable
 fun SourcesScreen(onBack: () -> Unit, openDebug: (String) -> Unit, openLogin: (String) -> Unit) {
@@ -119,18 +123,19 @@ fun SourcesScreen(onBack: () -> Unit, openDebug: (String) -> Unit, openLogin: (S
                         value = urlInput,
                         onValueChange = { urlInput = it },
                         label = { Text("书源网络地址（http…）") },
+                        placeholder = { Text("内置番茄：fanqie://番茄.json") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    InkButton("从网络地址导入", Modifier.fillMaxWidth(), enabled = urlInput.startsWith("http")) {
+                    InkButton("从网络地址导入", Modifier.fillMaxWidth(), enabled = isImportUrl(urlInput)) {
                         showImport = false
-                        runImport { AppGraph.sources.importFromUrl(urlInput) }
+                        runImport { AppGraph.sources.importFromUrl(urlInput.trim()) }
                     }
                     InkButton("从剪贴板导入", Modifier.fillMaxWidth()) {
                         showImport = false
                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val text = cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
-                        if (text.trim().startsWith("http")) runImport { AppGraph.sources.importFromUrl(text.trim()) }
+                        if (isImportUrl(text)) runImport { AppGraph.sources.importFromUrl(text.trim()) }
                         else runImport { AppGraph.sources.importJson(text) }
                     }
                     InkButton("从文件导入", Modifier.fillMaxWidth()) {

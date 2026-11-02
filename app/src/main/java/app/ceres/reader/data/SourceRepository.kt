@@ -12,7 +12,11 @@ import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.util.concurrent.ConcurrentHashMap
 
-class SourceRepository(private val dao: SourceDao, private val settings: Settings) {
+class SourceRepository(
+    private val dao: SourceDao,
+    private val settings: Settings,
+    private val openAsset: (String) -> java.io.InputStream,
+) {
     private val parsed = ConcurrentHashMap<String, Pair<String, BookSource>>()
 
     val items: Flow<List<SourceItem>> = dao.observeItems()
@@ -30,30 +34,32 @@ class SourceRepository(private val dao: SourceDao, private val settings: Setting
         return src
     }
 
+    private fun toEntity(s: BookSource, at: Long, enabled: Boolean = s.enabled) = SourceEntity(
+        url = s.bookSourceUrl,
+        name = s.bookSourceName.ifBlank { s.bookSourceUrl },
+        group = s.bookSourceGroup,
+        enabled = enabled,
+        sortOrder = s.customOrder,
+        hasReview = s.hasReview(),
+        json = s.toJson(),
+        updatedAt = at,
+    ).also { e -> parsed[e.url] = e.json to s }
+
     /** Imports a JSON array/object of Legado sources. Returns the number imported. */
     suspend fun importJson(json: String): Int {
         val now = System.currentTimeMillis()
-        val entities = withContext(Dispatchers.Default) {
-            parseBookSources(json).map { s ->
-                SourceEntity(
-                    url = s.bookSourceUrl,
-                    name = s.bookSourceName.ifBlank { s.bookSourceUrl },
-                    group = s.bookSourceGroup,
-                    enabled = s.enabled,
-                    sortOrder = s.customOrder,
-                    hasReview = s.hasReview(),
-                    json = s.toJson(),
-                    updatedAt = now,
-                ).also { e -> parsed[e.url] = e.json to s }
-            }
-        }
+        val entities = withContext(Dispatchers.Default) { parseBookSources(json).map { toEntity(it, now) } }
         if (entities.isEmpty()) throw IllegalArgumentException("没有识别到书源（需要阅读格式的 JSON）")
         dao.upsertAll(entities)
         settings.dropSourceRemovals(entities.map { it.url })
         return entities.size
     }
 
+    /** Imports the bundled Fanqie source; reached through the `fanqie://<name>.json` shorthand. */
+    suspend fun importBuiltinFanqie(): Int = importStream { openAsset(FANQIE_ASSET) }
+
     suspend fun importFromUrl(url: String): Int {
+        if (isBuiltinFanqie(url)) return importBuiltinFanqie()
         val body = withContext(Dispatchers.IO) {
             val req = Request.Builder().url(url.trim()).header("User-Agent", Http.DEFAULT_UA).build()
             Http.client.newCall(req).execute().use { resp ->
@@ -86,5 +92,13 @@ class SourceRepository(private val dao: SourceDao, private val settings: Setting
     suspend fun applySynced(upserts: List<SourceEntity>, deletes: List<String>) {
         if (upserts.isNotEmpty()) dao.upsertAll(upserts)
         if (deletes.isNotEmpty()) dao.deleteAll(deletes)
+    }
+
+    companion object {
+        const val FANQIE_ASSET = "fanqie_novel_source.json"
+        private val FANQIE_SHORTHAND = Regex("^fanqie://[^/?#\\s]+\\.json$", RegexOption.IGNORE_CASE)
+
+        /** `fanqie://<anything>.json` is shorthand for the bundled Fanqie source. */
+        fun isBuiltinFanqie(url: String): Boolean = FANQIE_SHORTHAND.matches(url.trim())
     }
 }

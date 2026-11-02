@@ -47,7 +47,8 @@ object AppGraph {
         db = AppDatabase.create(context)
         Kv.store = RoomKv(db.kvDao())
         settings = Settings(context)
-        sources = SourceRepository(db.sourceDao(), settings)
+        val assets = context.applicationContext.assets
+        sources = SourceRepository(db.sourceDao(), settings) { name -> assets.open(name) }
         books = BookRepository(db, sources, File(context.filesDir, "books"))
         cache = CacheManager(appScope, books)
         importer = LocalImporter(context.applicationContext, books, db)

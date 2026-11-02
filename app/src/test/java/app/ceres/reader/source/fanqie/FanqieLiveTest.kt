@@ -25,14 +25,12 @@ class FanqieLiveTest {
 
     private val live = System.getenv("CERES_LIVE") == "1"
 
-    /** 书源 JSON 单独开源；这里按环境变量、本仓库、相邻仓库的顺序查找。 */
+    /** 默认用内置书源（assets）；可用环境变量指定别的版本。 */
     private val sourceFile: File? by lazy {
         buildList {
             System.getenv("CERES_FANQIE_SOURCE")?.let { add(File(it)) }
-            add(File("fanqie_novel_source.json"))
-            add(File("../fanqie_novel_source.json"))
-            add(File("../fanqie-legado-source/fanqie_novel_source.json"))
-            add(File("../../fanqie-legado-source/fanqie_novel_source.json"))
+            add(File("src/main/assets/fanqie_novel_source.json"))
+            add(File("app/src/main/assets/fanqie_novel_source.json"))
         }.firstOrNull { it.isFile }
     }
 
