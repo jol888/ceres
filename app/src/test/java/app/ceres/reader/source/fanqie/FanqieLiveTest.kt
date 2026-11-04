@@ -196,6 +196,22 @@ class FanqieLiveTest {
         }
     }
 
+    /** 标题块 class 是 `chapterTitle1` 的书：标题也要剥掉，否则段评整体提前一段。 */
+    @Test
+    fun suffixedChapterTitleClassIsStripped() {
+        val book = Book(
+            bookUrl = FanqieUrls.book(SUFFIXED_TITLE_BOOK_ID),
+            origin = source.bookSourceUrl,
+            originName = source.bookSourceName,
+        )
+        WebBook.getBookInfo(source, book)
+        val chapter = WebBook.getChapterList(source, book).first { !it.isVolume && !it.isVip && !it.isPay }
+        val paragraphs = WebBook.getContent(source, book, chapter, null)
+        println("《${book.name}》${chapter.title} 首段: ${paragraphs.firstOrNull()}")
+        assertTrue("正文首段仍是章节标题: ${paragraphs.firstOrNull()}",
+            paragraphs.firstOrNull()?.startsWith("东京，某处") == true)
+    }
+
     /** 服务端已登记密钥，但本地缓存的密钥是错的：密文解不开，应轮换后直接解开。 */
     @Test
     fun staleLocalKeyIsRotatedOnDecryptFailure() {
@@ -231,5 +247,7 @@ class FanqieLiveTest {
         const val KEY_RECORD = "fanqie_v1_key"
         const val STALE_KEY = "00000000000000000000000000000000"
         const val BOOK_ID = "7143038691944959011"
+        /** 《孤独永恒白洞乐队与重力潮汐锁定》，标题块是 `<h1 class="chapterTitle1">`。 */
+        const val SUFFIXED_TITLE_BOOK_ID = "7457847629901220888"
     }
 }

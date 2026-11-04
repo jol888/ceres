@@ -53,9 +53,9 @@ object FanqieClient {
     /** 番茄把章节标题放在 10000 这个特殊段落下标上。 */
     private const val CHAPTER_TITLE_PARA_INDEX = 10000
 
-    /** 番茄正文里的章节标题块；标题单独由阅读器显示，正文中不要重复。 */
+    /** 番茄正文里的章节标题块；标题单独由阅读器显示，正文中不要重复。class 可能带数字后缀（如 chapterTitle1）。 */
     private val CHAPTER_TITLE_BLOCK =
-        Regex("(?is)<h1\\b[^>]*\\bchapterTitle\\b[^>]*>.*?</h1>")
+        Regex("(?is)<h1\\b[^>]*(?:\\bchapterTitle\\w*|\\bidx=\"$CHAPTER_TITLE_PARA_INDEX\")[^>]*>.*?</h1>")
 
     private val gson = GsonBuilder().disableHtmlEscaping().create()
     private val random = SecureRandom()
