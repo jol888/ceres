@@ -75,6 +75,25 @@ class BookRepository(
         return chapters
     }
 
+    /** Adds the Fanqie book [bookId] to the shelf, fetching its info and TOC when it is new. */
+    suspend fun importFanqie(bookId: String): Book {
+        val url = FanqieUrls.book(bookId)
+        get(url)?.let { book ->
+            if (!book.inShelf) save(book.copy(inShelf = true))
+            return book.copy(inShelf = true)
+        }
+        val src = sources.fanqie()
+        val book = Book(bookUrl = url, origin = src.bookSourceUrl, originName = src.bookSourceName, inShelf = true)
+        val chapters = runInterruptible(Dispatchers.IO) {
+            val body = WebBook.getBookInfo(src, book)
+            if (book.name.isBlank()) throw SourceException("没有找到书号 $bookId 对应的书籍")
+            WebBook.getChapterList(src, book, body)
+        }
+        bookDao.upsert(book)
+        chapterDao.replace(url, chapters)
+        return book
+    }
+
     // ---------------- content cache ----------------
 
     fun bookDir(book: Book) = File(cacheRoot, md5(book.bookUrl))

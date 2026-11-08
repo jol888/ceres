@@ -47,13 +47,29 @@ fun ShelfScreen(
         }
     }
 
+    var showImport by remember { mutableStateOf(false) }
+    var askBookId by remember { mutableStateOf(false) }
+
+    fun importBookId(bookId: String) {
+        importing = true
+        scope.launch {
+            runCatching { AppGraph.books.importFanqie(bookId) }
+                .onSuccess {
+                    Toast.makeText(context, "已加入《${it.name}》", Toast.LENGTH_SHORT).show()
+                    openDetail(it)
+                }
+                .onFailure { Toast.makeText(context, "导入失败：${it.message}", Toast.LENGTH_LONG).show() }
+            importing = false
+        }
+    }
+
     val webDav by AppGraph.settings.webDav.collectAsState()
     var syncing by remember { mutableStateOf(false) }
 
     Screen(title = "书架", actions = {
         Action("搜索", openSearch)
         Action("发现", openExplore)
-        Action("导入") { picker.launch(arrayOf("text/plain", "application/epub+zip", "application/octet-stream")) }
+        Action("导入") { showImport = true }
         if (webDav.enabled && webDav.url.isNotBlank()) {
             Action(if (syncing) "同步中" else "同步") {
                 if (syncing) return@Action
@@ -74,7 +90,8 @@ fun ShelfScreen(
             importing -> CenterMessage("正在导入…")
             list == null -> CenterMessage("加载中…")
             list.isEmpty() -> CenterMessage(
-                "书架是空的。\n\n在线阅读：先到「书源」导入书源，再「搜索」。\n本地阅读：点「导入」选择 TXT / EPUB。"
+                "书架是空的。\n\n在线阅读：先到「书源」导入书源，再「搜索」。\n" +
+                    "本地阅读：点「导入」选择 TXT / EPUB。\n番茄小说：在番茄 App 里分享到 Ceres，或「导入」输入书号。"
             )
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(list, key = { it.bookUrl }) { book ->
@@ -100,6 +117,16 @@ fun ShelfScreen(
             }
         }
     }
+
+    if (showImport) {
+        OptionsDialog("导入", listOf(
+            "本地 TXT / EPUB" to {
+                picker.launch(arrayOf("text/plain", "application/epub+zip", "application/octet-stream"))
+            },
+            "番茄书号 / 分享链接" to { askBookId = true },
+        )) { showImport = false }
+    }
+    if (askBookId) BookIdDialog(onImport = ::importBookId) { askBookId = false }
 
     menuFor?.let { book ->
         val running = AppGraph.cache.isRunning(book.bookUrl)

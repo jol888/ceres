@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,6 +27,7 @@ import app.ceres.reader.ui.CeresTheme
 import app.ceres.reader.ui.DetailScreen
 import app.ceres.reader.ui.ExploreScreen
 import app.ceres.reader.ui.ImportLinkDialog
+import app.ceres.reader.util.BookIdLink
 import app.ceres.reader.util.ImportLink
 import app.ceres.reader.ui.LocalPalette
 import app.ceres.reader.ui.SearchScreen
@@ -47,6 +49,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private var importLink by mutableStateOf<ImportLink?>(null)
+    private var sharedBookId by mutableStateOf<String?>(null)
 
     override fun onStart() {
         super.onStart()
@@ -60,9 +63,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleLink(intent: Intent?) {
-        val data = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString ?: return
+        val data = when (intent?.action) {
+            Intent.ACTION_VIEW -> intent.dataString
+            Intent.ACTION_SEND -> intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+            else -> null
+        } ?: return
         val link = ImportLink.parse(data)
+        val bookId = if (link == null) BookIdLink.parse(data) else null
         when {
+            bookId != null -> sharedBookId = bookId
             link == null -> Toast.makeText(this, "无法识别的导入链接", Toast.LENGTH_SHORT).show()
             !link.isBookSource -> Toast.makeText(this, "暂不支持导入 ${link.type}", Toast.LENGTH_SHORT).show()
             else -> importLink = link
@@ -150,6 +159,19 @@ class MainActivity : ComponentActivity() {
                         SourceDebugScreen(entry.arguments?.getString("url").orEmpty(), onBack = { nav.popBackStack() })
                     }
                     composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
+                }
+                sharedBookId?.let { id ->
+                    LaunchedEffect(id) {
+                        val ctx = this@MainActivity
+                        Toast.makeText(ctx, "正在导入番茄书籍 $id…", Toast.LENGTH_SHORT).show()
+                        runCatching { AppGraph.books.importFanqie(id) }
+                            .onSuccess {
+                                Toast.makeText(ctx, "已加入《${it.name}》", Toast.LENGTH_SHORT).show()
+                                nav.navigate("detail/${Uri.encode(it.bookUrl)}")
+                            }
+                            .onFailure { Toast.makeText(ctx, "导入失败：${it.message}", Toast.LENGTH_LONG).show() }
+                        sharedBookId = null
+                    }
                 }
             }
         }
