@@ -123,7 +123,6 @@ fun SourcesScreen(onBack: () -> Unit, openDebug: (String) -> Unit, openLogin: (S
                         value = urlInput,
                         onValueChange = { urlInput = it },
                         label = { Text("书源网络地址（http…）") },
-                        placeholder = { Text("内置番茄：fanqie://番茄.json") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
