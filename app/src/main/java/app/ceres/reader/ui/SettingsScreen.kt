@@ -45,7 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, openTransfer: () -> Unit) {
     val s by AppGraph.settings.reader.collectAsState()
     val dav by AppGraph.settings.webDav.collectAsState()
     val update = AppGraph.settings::update
@@ -332,6 +332,18 @@ fun SettingsScreen(onBack: () -> Unit) {
             Text(
                 "导出全部书源（含启用状态和导入地址）与 WebDAV 账号密码，文件名带时间戳；" +
                     "已配置 WebDAV 时同时上传到 ceres/backups/。文件含明文密码，请妥善保管。",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            InkButton(
+                "设备互传（蓝牙 / 声波）",
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                onClick = openTransfer,
+            )
+            Text(
+                "不用联网，把书源与 WebDAV 账号直接传给旁边的另一台设备，适合没有摄像头的阅读器。",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 8.dp),
             )

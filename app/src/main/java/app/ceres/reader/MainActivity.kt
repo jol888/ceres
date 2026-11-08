@@ -36,6 +36,7 @@ import app.ceres.reader.ui.ShelfScreen
 import app.ceres.reader.ui.SourceDebugScreen
 import app.ceres.reader.ui.SourceLoginScreen
 import app.ceres.reader.ui.SourcesScreen
+import app.ceres.reader.ui.TransferScreen
 import app.ceres.reader.ui.reader.ReaderScreen
 
 class MainActivity : ComponentActivity() {
@@ -158,7 +159,10 @@ class MainActivity : ComponentActivity() {
                     composable("debug/{url}") { entry ->
                         SourceDebugScreen(entry.arguments?.getString("url").orEmpty(), onBack = { nav.popBackStack() })
                     }
-                    composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
+                    composable("settings") {
+                        SettingsScreen(onBack = { nav.popBackStack() }, openTransfer = { nav.navigate("transfer") })
+                    }
+                    composable("transfer") { TransferScreen(onBack = { nav.popBackStack() }) }
                 }
                 sharedBookId?.let { id ->
                     LaunchedEffect(id) {
