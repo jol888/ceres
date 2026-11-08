@@ -58,12 +58,8 @@ class SourceRepository(
     /** Imports the bundled Fanqie source; reached through the `fanqie://<name>.json` shorthand. */
     suspend fun importBuiltinFanqie(): Int = importStream { openAsset(FANQIE_ASSET) }
 
-    /** The Fanqie source, importing the bundled one first if it is missing. */
-    suspend fun fanqie(): BookSource {
-        get(FANQIE_SOURCE_URL)?.let { return it }
-        importBuiltinFanqie()
-        return get(FANQIE_SOURCE_URL) ?: throw IllegalStateException("内置番茄书源导入失败")
-    }
+    suspend fun fanqie(): BookSource = get(FANQIE_SOURCE_URL)
+        ?: throw IllegalStateException("请先导入番茄书源（书源 → 导入 → 网络地址输入 fanqie://番茄.json）")
 
     suspend fun importFromUrl(url: String): Int {
         if (isBuiltinFanqie(url)) return importBuiltinFanqie()
